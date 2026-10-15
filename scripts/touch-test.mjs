@@ -1,0 +1,20 @@
+import { chromium } from 'playwright-core';
+const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-webgpu','--enable-features=WebGPU,Vulkan','--ignore-gpu-blocklist','--use-angle=metal','--autoplay-policy=no-user-gesture-required'] });
+const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+const page = await ctx.newPage();
+const logs = [];
+page.on('console', (m) => { if (['error','warning'].includes(m.type())) logs.push(m.text()); });
+page.on('pageerror', (e) => logs.push('pageerror ' + e.message));
+await page.goto('http://127.0.0.1:5391/?weather=breeze', { waitUntil: 'load' });
+await page.waitForTimeout(7000);
+await page.screenshot({ path: '/tmp/claude-shots/touch_menu.png' });
+await page.tap('#go');
+await page.waitForTimeout(6500);
+// drag the throttle lever up and hold steer right
+const thr = await page.locator('#tThr').boundingBox();
+await page.touchscreen.tap(thr.x + thr.width/2, thr.y + thr.height*0.25);
+await page.waitForTimeout(4000);
+console.log(JSON.stringify(await page.evaluate(() => ({ phase: __game.phase, throttle: __game.input.throttle, speed: __game.player.speed, q: __game.settings.quality, touch: document.getElementById('ui').classList.contains('touch-device') }))));
+await page.screenshot({ path: '/tmp/claude-shots/touch_play.png' });
+console.log(logs.join('\n'));
+await browser.close();
