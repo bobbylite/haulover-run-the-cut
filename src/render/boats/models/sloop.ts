@@ -7,6 +7,7 @@ import type { BoatSpec } from '../../../sim/boatSpec';
 import { shared } from '../../shared';
 import { ToonMaterial } from '../../toon';
 import {
+  addEnsign,
   hullMeshes,
   hullOpts,
   type ModelParts,
@@ -207,9 +208,10 @@ export function buildSloop(spec: BoatSpec): ModelParts {
 
   const burgee = makeFlag(0.55, 0.26, '#ff8f7a', '#fff9ee', 2);
   burgee.position.set(mastX, deckY + top + 0.1, 0);
-  const ensign = makeFlag(0.5, 0.3, '#37b5c4', '#fff9ee', 3);
-  ensign.position.set(-4.35, 1.9, 0);
-  root.add(burgee, ensign);
+  // national ensign on a stern staff off the starboard quarter
+  const spb = new PartBuilder();
+  const ensign = addEnsign(spb, [-4.3, sheerAt(o, 0.02) - 0.02, 0.5], 1.2, 0.85);
+  root.add(burgee, spb.build(), ensign);
 
   // steering wheel (rotates with the helm)
   const wheel = new Group();

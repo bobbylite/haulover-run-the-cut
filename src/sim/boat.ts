@@ -7,7 +7,9 @@ import { Quaternion, Vector3 } from 'three';
 import { clamp, lerp, smoothstep } from '../core/math';
 import { type BoatSpec, RHO_A } from './boatSpec';
 import { BoatWater } from './boatWater';
-import { GRAVITY, makeWaveSample, type WaveSample } from './waves';
+import { boomLimit, drawing, sailCoeffs } from './sail';
+import { gradeLanding, WaveRide } from './waveRide';
+import { GRAVITY, makeWaveAxis, makeWaveSample, type WaveAxis, type WaveSample } from './waves';
 
 export interface BoatEnv {
   time: number;
@@ -19,6 +21,8 @@ export interface BoatEnv {
   hardNormal(x: number, z: number, out: { x: number; z: number }): void;
   /** Local short-wave energy (m) used for spray. */
   chopAt(x: number, z: number): number;
+  /** Dominant wave axis and height at a point (for the wave-attack rules); absent = flat sea. */
+  axisAt?(x: number, z: number, out: WaveAxis): void;
 }
 
 export interface BoatInput {
@@ -37,6 +41,30 @@ export interface Impact {
 
 const SUB_DT = 1 / 120;
 const LIN_X = 70;
+
+/** The sail crossing the boat: through the wind (tack) or with the wind astern (gybe). */
+export interface SailEvent {
+  kind: 'tack' | 'gybe';
+  /** 0..1.5, how violently (apparent wind squared x how far out the boom was let). */
+  strength: number;
+}
+
+/** Leak (L/s) opened per unit of hull integrity lost, before the difficulty's leak scale. */
+export const LEAK_PER_DAMAGE = 6;
+/** Wave-impact damage gain: hull fraction lost per (m/s over the hull's tolerance)^1.4. */
+export const WAVE_DAMAGE_GAIN = 0.003;
+
+/** A wave impact that hurt the hull (consumed by the game for toasts and shake). */
+export interface WaveHit {
+  /** 'slam' = bow / hull meeting a face; 'slap' = a set wave broadside. */
+  kind: 'slam' | 'slap';
+  /** Closing speed (m/s). */
+  speed: number;
+  /** Hull fraction lost. */
+  damage: number;
+  /** How wrong the line was, 0..1. */
+  bad: number;
+}
 
 export class Boat {
   readonly water: BoatWater;
@@ -73,6 +101,16 @@ export class Boat {
   /** 0 = sail drawing, 1 = fully luffing. */
   sailLuff = 0;
   sailPower = 0;
+  /** Apparent wind speed (m/s) and angle off the bow (radians, + = from starboard, - = from port). */
+  appWind = 0;
+  awa = 0;
+  /** Angle of attack of the sail on the apparent wind (radians): ~0.2 is ideal, ~0 luffs, > 0.3 stalls. */
+  sailAlpha = 0;
+  /** Tacks and gybes since the game last looked. */
+  readonly sailEvents: SailEvent[] = [];
+  private boomInit = false;
+  /** Seconds before another tack / gybe counts as an event (the boom can only crash across so often). */
+  private sailCool = 0;
   heelDeg = 0;
   /** 0..1 how hard the keel is dragging on the bottom. */
   grounded = 0;
@@ -81,6 +119,22 @@ export class Boat {
   capsizeT = 0;
   capsized = false;
   readonly impacts: Impact[] = [];
+  /** Hull integrity, 1 = sound, 0 = broken up. Worn down by wave impacts and collisions. */
+  hull = 1;
+  /** True once the hull has been pounded to pieces. */
+  wrecked = false;
+  /** Ambient traffic is not worn down by the sea; only the player's hull is. */
+  indestructible = false;
+  /** Multiplier on the leak a hull strike opens (from the difficulty). */
+  leakScale = 1;
+  /** Wave-attack read-outs and the Wave Rider streak. */
+  readonly ride = new WaveRide();
+  /** Wave impacts that damaged the hull since the game last looked. */
+  readonly hits: WaveHit[] = [];
+  /** Seconds the whole hull has been clear of the water. */
+  airT = 0;
+  /** Peak height gained over the sea during the current jump (m). */
+  airPeak = 0;
   /** World position of the bow (for spray). */
   readonly bowWorld = new Vector3();
   readonly fwd = new Vector3(1, 0, 0);
@@ -92,6 +146,11 @@ export class Boat {
   private readonly ws = makeWaveSample();
   private readonly ws2 = makeWaveSample();
   private readonly cur = { x: 0, z: 0 };
+  /** Tidal current at the bow and stern: in the throat the flow changes along a hull, which yaws it. */
+  private readonly curBow = { x: 0, z: 0 };
+  private readonly curStern = { x: 0, z: 0 };
+  private readonly xBow: number;
+  private readonly xStern: number;
   private readonly wnd = { x: 0, z: 0 };
   private readonly nrm = { x: 0, z: 0 };
   private readonly com = { x: 0, y: 0, z: 0 };
@@ -99,6 +158,17 @@ export class Boat {
   private readonly bowIdx: number;
   private bowImmPrev = 0;
   private slamImpact = 0;
+  private hitImpact = 0;
+  /** Worst wave impact of the last frame (m/s). */
+  private frameImpact = 0;
+  private wetMin = 99;
+  private readonly prevImm: Float64Array;
+  private readonly axis = makeWaveAxis();
+  // individual wave tracking at the CG (for broadside slaps)
+  private vyPrev = 0;
+  private troughH = 0;
+  private slapCool = 0;
+  private readonly toughness: number;
   private readonly weirOver: number[];
   private readonly accel = new Vector3();
   private readonly prevVel = new Vector3();
@@ -132,6 +202,17 @@ export class Boat {
     for (let i = 0; i < spec.samples.length; i++)
       if ((spec.samples[i]?.x ?? 0) > (spec.samples[best]?.x ?? 0)) best = i;
     this.bowIdx = best;
+    this.prevImm = new Float64Array(spec.samples.length);
+    let xMin = Infinity;
+    let xMax = -Infinity;
+    for (const smp of spec.samples) {
+      xMin = Math.min(xMin, smp.x);
+      xMax = Math.max(xMax, smp.x);
+    }
+    this.xStern = xMin - spec.cg[0];
+    this.xBow = xMax - spec.cg[0];
+    // the impact speed a hull shrugs off: bigger, heavier-built boats are made for it
+    this.toughness = spec.strength;
     this.weirOver = new Array(spec.weirs.length).fill(-1);
     this.inertia = [spec.inertia[0], spec.inertia[1], spec.inertia[2]];
     // Hydrodynamic damping isn't modelled per point, so floor the angular damping from the hull's
@@ -178,6 +259,17 @@ export class Boat {
     this.capsized = false;
     this.grounded = 0;
     this.foulT = 0;
+    this.hull = 1;
+    this.wrecked = false;
+    this.boomInit = false;
+    this.sailCool = 0;
+    this.sailEvents.length = 0;
+    this.ride.reset();
+    this.hits.length = 0;
+    this.airT = this.airPeak = 0;
+    this.hitImpact = this.slamImpact = this.frameImpact = 0;
+    this.vyPrev = this.troughH = this.slapCool = 0;
+    this.prevImm.fill(0);
     this.water.reset();
     this.impacts.length = 0;
     this.lastGood.copy(this.pos);
@@ -206,9 +298,12 @@ export class Boat {
 
     const n = Math.min(6, Math.max(1, Math.ceil(dt / SUB_DT)));
     const h = dt / n;
+    this.wetMin = 99;
+    this.sailCool = Math.max(0, this.sailCool - dt);
     for (let i = 0; i < n; i++) this.step(h, env);
     this.updateWater(dt, env);
     this.updateReadouts(env);
+    this.updateRide(dt, env);
     // sinking & capsize
     if (this.water.litres >= (this.capacityLimit ?? 1e9)) this.sinking = true;
     if (this.sinking) this.sinkT = Math.min(1, this.sinkT + dt / 5);
@@ -277,11 +372,17 @@ export class Boat {
     const sinkScale = 1 - this.sinkT * 0.97;
 
     env.currentAt(pos.x, pos.z, cur);
+    env.currentAt(pos.x + r00 * this.xBow, pos.z + r20 * this.xBow, this.curBow);
+    env.currentAt(pos.x + r00 * this.xStern, pos.z + r20 * this.xStern, this.curStern);
+    const curSpan = Math.max(0.5, this.xBow - this.xStern);
     // forward speed through the water (CG), used for hump drag / lift / thrust curve
     const rvx0 = vel.x - cur.x;
     const rvz0 = vel.z - cur.z;
     const uf = r00 * rvx0 + r10 * vel.y + r20 * rvz0;
-    const hf = 1 + this.humpGain * Math.exp(-(((Math.abs(uf) - this.humpSpeed) / this.humpWidth) ** 2));
+    // displacement hulls hit a wave-making wall past their hull speed
+    const wall = spec.hullSpeed ? 1 + 12 * Math.max(0, Math.abs(uf) / spec.hullSpeed - 1) ** 1.5 : 1;
+    const hf =
+      (1 + this.humpGain * Math.exp(-(((Math.abs(uf) - this.humpSpeed) / this.humpWidth) ** 2))) * wall;
     const pitch = Math.asin(clamp(r10, -1, 1));
     const aoaEff = clamp(pitch + 0.035, 0.0, 0.26);
     const ufPos = Math.max(0, uf);
@@ -294,6 +395,7 @@ export class Boat {
     // ---- hull samples ------------------------------------------------------------------------
     const samples = spec.samples;
     let groundTouch = 0;
+    let wetCount = 0;
     for (let i = 0; i < samples.length; i++) {
       const s = samples[i]!;
       const lx = s.x - cgx;
@@ -310,6 +412,8 @@ export class Boat {
       const vpz = vel.z + om.x * ry - om.y * rx;
       env.waveAt(px, pz, ws);
       const imm = ws.h - py;
+      const prevImm = this.prevImm[i] as number;
+      this.prevImm[i] = imm > 0 ? imm : 0;
 
       // seabed contact at the sample bottoms
       const bed = env.seabedAt(px, pz);
@@ -319,9 +423,12 @@ export class Boat {
         if (i === this.bowIdx) this.bowImmPrev = 0;
         continue;
       }
-      const wvx = cur.x + ws.vx;
+      wetCount++;
+      // the current this part of the hull sits in: bow and stern can be in different flow
+      const tc = (s.x - cgx - this.xStern) / curSpan;
+      const wvx = lerp(this.curStern.x, this.curBow.x, tc) + ws.vx;
       const wvy = ws.vy;
-      const wvz = cur.z + ws.vz;
+      const wvz = lerp(this.curStern.z, this.curBow.z, tc) + ws.vz;
       const rvx = vpx - wvx;
       const rvy = vpy - wvy;
       const rvz = vpz - wvz;
@@ -332,6 +439,15 @@ export class Boat {
         if (this.bowImmPrev < 0.02 && imm > 0.04 && rvy < -1.2)
           this.slamImpact = Math.max(this.slamImpact, -rvy);
         this.bowImmPrev = imm;
+      }
+      // any sample meeting the water: closing speed normal to the wave face (bow stuffing, side slaps)
+      if (prevImm < 0.02 && imm > 0.04) {
+        const closing = -(rvx * ws.nx + rvy * ws.ny + rvz * ws.nz);
+        if (closing > 0) {
+          const share = (s.x - spec.cg[0]) / spec.length;
+          const wgt = share > 0.2 ? 1 : share > -0.15 ? 0.8 : 0.55;
+          this.hitImpact = Math.max(this.hitImpact, closing * wgt);
+        }
       }
 
       const sc = imm < s.cell ? imm : s.cell;
@@ -356,6 +472,8 @@ export class Boat {
       const hy = 0.5 * sc;
       this.addF(Fx, Fy, Fz, rx + r01 * hy, ry + r11 * hy, rz + r21 * hy);
     }
+
+    this.wetMin = Math.min(this.wetMin, wetCount);
 
     // keel / skeg ground contact (deep-keeled boats touch first)
     {
@@ -453,6 +571,8 @@ export class Boat {
       const az = this.wnd.z - vel.z;
       const ua = r00 * ax + r20 * az;
       const wa = r02 * ax + r22 * az;
+      this.appWind = Math.hypot(ua, wa);
+      this.awa = (wa < 0 ? 1 : -1) * Math.atan2(Math.abs(wa), -ua);
       const k = 0.5 * RHO_A;
       const wd = spec.wind;
       const Fxb = k * wd.cdFront * wd.front * ua * Math.abs(ua);
@@ -465,33 +585,45 @@ export class Boat {
       const rz = r20 * lx + r21 * ly + r22 * lz;
       this.addF(Fxb * r00 + Fzb * r02, Fxb * r10 + Fzb * r12, Fxb * r20 + Fzb * r22, rx, ry, rz);
 
-      // sail: lift + drag with the boom limited by the sheet
+      // sail: a foil with stall. The boom is held by the sheet; lift is perpendicular to the apparent wind
+      // and always points to the lee side of the sail, drag runs with the wind.
       const sail = spec.sail;
       if (sail && this.sailUp) {
-        const bx = r00 * ax + r20 * az; // airflow along the boat (positive = towards the bow)
-        const bz = r02 * ax + r22 * az; // airflow towards starboard
-        const vapp = Math.hypot(bx, bz);
+        const vapp = this.appWind;
         if (vapp > 0.2) {
-          const dx = bx / vapp;
-          const dz = bz / vapp;
-          const gamma = Math.atan2(Math.abs(bz), -bx);
-          const thetaMax = lerp(0.1, 1.42, this.sheet);
-          const thetaB = Math.min(thetaMax, gamma);
+          const dx = ua / vapp;
+          const dz = wa / vapp;
+          const gamma = Math.abs(this.awa);
+          // the boom changes sides only once the wind is clearly on the other side (no flicker dead astern)
+          const want = wa >= 0 ? 1 : -1;
+          if (!this.boomInit) {
+            this.boomSide = want;
+            this.boomInit = true;
+          } else if (want !== this.boomSide && Math.abs(wa) > 0.12 * vapp) {
+            this.boomSide = want;
+            const strength = clamp((vapp * vapp * (0.35 + boomLimit(this.sheet) / 1.4)) / 100, 0, 1.5);
+            this.sailEvents.push({ kind: gamma > 1.9 ? 'gybe' : 'tack', strength });
+            if (gamma > 1.9) {
+              // a crash gybe: the boom slams across and the boat lurches over to the new lee side
+              this.angVel.x += this.fwd.x * want * 0.5 * strength;
+              this.angVel.y += this.fwd.y * want * 0.5 * strength;
+              this.angVel.z += this.fwd.z * want * 0.5 * strength;
+              if (strength > 0.8) this.damage(0.02 * strength);
+            }
+          }
+          const thetaB = Math.min(boomLimit(this.sheet), gamma);
           this.boomAngle = thetaB;
-          this.boomSide = bz >= 0 ? 1 : -1;
           const alpha = gamma - thetaB;
-          const sa = Math.sin(alpha);
-          const luff = smoothstep(0.02, 0.15, alpha);
+          this.sailAlpha = alpha;
+          const luff = drawing(alpha);
           this.sailLuff = 1 - luff;
-          const cl = 1.5 * Math.sin(2 * alpha) * (1 - 0.3 * sa) * luff;
-          const cd = 1.15 * sa * sa + 0.09;
+          const { cl, cd } = sailCoeffs(alpha);
           const qA = 0.5 * RHO_A * vapp * vapp * sail.area;
-          // lift is perpendicular to the flow and points to leeward
-          const sgn = Math.sign(dx * dz) || 1;
+          const sgn = -this.boomSide;
           const px = -dz * sgn;
           const pz = dx * sgn;
-          const Fbx = qA * (cl * px + cd * dx);
-          const Fbz = qA * (cl * pz + cd * dz);
+          const Fbx = qA * (cl * luff * px + cd * dx);
+          const Fbz = qA * (cl * luff * pz + cd * dz);
           this.sailPower = Math.hypot(Fbx, Fbz);
           const lx2 = sail.x - cgx;
           const ly2 = sail.y - cgy;
@@ -731,8 +863,129 @@ export class Boat {
     this.seaLevel = this.ws.h;
     const bowSpeed = Math.max(0, this.speed);
     const chop = env.chopAt(pos.x, pos.z);
-    this.water.update(dt, this.weirOver, bowSpeed, chop, this.slamImpact, tiltRoll, tiltPitch, head);
+    this.water.update(
+      dt,
+      this.weirOver,
+      bowSpeed,
+      chop,
+      this.slamImpact,
+      tiltRoll,
+      tiltPitch,
+      head,
+      this.ride.water,
+    );
+    this.frameImpact = Math.max(this.slamImpact, 0.9 * this.hitImpact);
+    this.waveImpacts(this.frameImpact);
     this.slamImpact = 0;
+    this.hitImpact = 0;
+  }
+
+  /** Turn a frame's worst wave impact into hull damage, scaled by how well the sea was met. */
+  private waveImpacts(impact: number): void {
+    const f = this.ride.damage;
+    if (f <= 0 || this.wrecked) return;
+    const over = impact - this.toughness;
+    if (over <= 0) return;
+    const dmg = WAVE_DAMAGE_GAIN * over ** 1.4 * f;
+    if (dmg < 0.0005) return;
+    this.damage(dmg);
+    this.hits.push({ kind: 'slam', speed: impact, damage: dmg, bad: this.ride.bad });
+    if (this.hits.length > 8) this.hits.shift();
+    if (dmg > 0.006) this.ride.breakStreak('hit');
+  }
+
+  /** Wear the hull down; every bit of lost integrity opens a seam that leaks. */
+  damage(amount: number): void {
+    if (amount <= 0 || this.wrecked || this.indestructible) return;
+    this.hull = Math.max(0, this.hull - amount);
+    this.water.leak = Math.min(9, this.water.leak + amount * LEAK_PER_DAMAGE * this.leakScale);
+    if (this.hull <= 0) {
+      this.wrecked = true;
+      this.sinking = true;
+    }
+  }
+
+  /**
+   * Set waves: when a crest noticeably bigger than the average wave passes while the hull lies broadside
+   * to the sea in rough water, it slaps the side: water aboard, a roll away from the wave, a shove and
+   * some damage. A clean 45 degree line (or head-on, where the bow takes it instead) never gets this.
+   */
+  private broadside(dt: number): void {
+    this.slapCool = Math.max(0, this.slapCool - dt);
+    const vy = this.ws.vy;
+    const h = this.seaLevel;
+    let crest = false;
+    if (this.vyPrev < 0 && vy >= 0) this.troughH = h;
+    else if (this.vyPrev > 0 && vy <= 0) crest = true;
+    this.vyPrev = vy;
+    const r = this.ride;
+    if (!crest || this.slapCool > 0 || this.wrecked) return;
+    if (r.beam < 0.3 || r.rough < 0.12 || Math.abs(this.speed) < 2.5) return;
+    const height = h - this.troughH;
+    if (height < 0.5 * this.axis.hs) return;
+    const m = clamp(height / Math.max(0.3, this.axis.hs), 0.6, 1.6) * r.beam * (0.35 + r.rough);
+    this.slapCool = 2.6;
+    const spec = this.spec;
+    this.water.addBurst(110 * m * Math.min(1.3, 7.4 / spec.length));
+    // the wave comes from `travel`; it shoves the hull along it and rolls the deck away from it
+    const tx = Math.cos(this.axis.travel);
+    const tz = Math.sin(this.axis.travel);
+    const side = Math.sign(tx * this.right.x + tz * this.right.z) || 1;
+    const light = clamp(Math.sqrt(2400 / spec.mass), 0.35, 1.2);
+    this.angVel.x += this.fwd.x * side * 0.6 * m * light;
+    this.angVel.y += this.fwd.y * side * 0.6 * m * light;
+    this.angVel.z += this.fwd.z * side * 0.6 * m * light;
+    this.vel.x += tx * 0.5 * m * light;
+    this.vel.z += tz * 0.5 * m * light;
+    const dmg = 0.04 * m * r.damage;
+    this.damage(dmg);
+    this.hits.push({ kind: 'slap', speed: 4 + 4 * m, damage: dmg, bad: r.bad });
+    if (this.hits.length > 8) this.hits.shift();
+    r.breakStreak('hit');
+  }
+
+  /** Wave-attack read-outs, the Wave Rider streak and jump (air time) bookkeeping. */
+  private updateRide(dt: number, env: BoatEnv): void {
+    const ax = this.axis;
+    if (env.axisAt) env.axisAt(this.pos.x, this.pos.z, ax);
+    else {
+      ax.angle = 0;
+      ax.hs = 0;
+      ax.coherence = 0;
+    }
+    this.ride.update(
+      dt,
+      this.heading,
+      this.speed,
+      this.spec.topSpeed,
+      ax.hs,
+      ax.angle,
+      ax.coherence,
+      this.spec.length,
+    );
+
+    this.broadside(dt);
+
+    // jumps: the whole hull clear of the sea for a moment
+    const lift = this.pos.y - this.seaLevel - this.spec.cg[1];
+    if (this.wetMin === 0) {
+      this.airT += dt;
+      this.airPeak = Math.max(this.airPeak, lift);
+    } else if (this.airT > 0) {
+      if (this.airT > 0.55 && lift < 1.2) {
+        const w = this.ws;
+        const slope = Math.atan(-(w.nx * this.fwd.x + w.nz * this.fwd.z) / Math.max(0.2, w.ny));
+        const impact = this.frameImpact;
+        this.ride.events.push({
+          kind: 'air',
+          time: this.airT,
+          grade: gradeLanding(this.pitch - slope, impact),
+          impact,
+        });
+      }
+      this.airT = 0;
+      this.airPeak = 0;
+    }
   }
 
   private readonly accelF = new Vector3();

@@ -153,6 +153,7 @@ export class Traffic {
     const boat = new Boat(spec);
     boat.reset(p0.x, p0.z, heading, env);
     boat.capacityLimit = spec.capacity * 1.6;
+    boat.indestructible = true;
     boat.water.autoBilge = 0.6;
     boat.sailUp = false;
     // storms make for cautious skippers

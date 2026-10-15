@@ -14,6 +14,40 @@ export interface GameConfig {
   route: Route;
 }
 
+export interface SailHud {
+  up: boolean;
+  /** Current sheet setting 0 (in) .. 1 (out) and the setting that gives the ideal angle of attack. */
+  sheet: number;
+  ideal: number;
+  /** Apparent wind angle off the bow, degrees (+ from starboard, - from port), and speed in knots. */
+  awaDeg: number;
+  awsKn: number;
+  /** Boom angle from the centreline, signed (+ = out to starboard), degrees. */
+  boomDeg: number;
+  luff: number;
+  power: number;
+  heelDeg: number;
+  status: 'down' | 'irons' | 'luff' | 'stall' | 'drawing' | 'gybe';
+}
+
+export interface WaveHud {
+  /** Signed bearing of the wave axis from the bow, degrees (-90..90). */
+  relDeg: number;
+  /** Angle between the heading and the wave axis, degrees (0..90). */
+  angleDeg: number;
+  /** 0..1, how wrong the line is. */
+  bad: number;
+  /** 0..1 roughness of the sea for this hull; the dial fades in with it. */
+  rough: number;
+  clean: boolean;
+  /** Streak multiplier (1 = none). */
+  mult: number;
+  /** 0..1 progress to the next streak level. */
+  next: number;
+  /** Seconds airborne right now. */
+  air: number;
+}
+
 export interface HudState {
   phase: Phase;
   speedKn: number;
@@ -27,8 +61,14 @@ export interface HudState {
   waterFrac: number;
   intakeLps: number;
   drainLps: number;
+  /** Intake minus drain: what the bilge is actually doing (L/s). */
+  netLps: number;
   leakLps: number;
   pumping: boolean;
+  /** Hull integrity, 0..1. */
+  hull: number;
+  /** Wave-attack read-outs for the dial and the Wave Rider streak. */
+  wave: WaveHud;
   windKn: number;
   windFrom: number;
   gustKn: number;
@@ -46,7 +86,7 @@ export interface HudState {
   gateLabel: string;
   progress: number;
   countdown: number;
-  sail: { up: boolean; sheet: number; luff: number; power: number } | null;
+  sail: SailHud | null;
   /** Docking challenge status (null until the Marina Entrance gate is crossed). */
   dock: DockStatus | null;
   /** Seconds left before the run clock expires (docking has its own timer). */
@@ -68,7 +108,7 @@ export interface ToastMsg {
 }
 
 export interface ResultState {
-  outcome: 'finished' | 'docked' | 'swamped' | 'capsized' | 'stranded' | 'timeout';
+  outcome: 'finished' | 'docked' | 'swamped' | 'wrecked' | 'capsized' | 'stranded' | 'timeout';
   title: string;
   subtitle: string;
   time: number;
@@ -82,6 +122,11 @@ export interface ResultState {
   capacityL: number;
   gates: { label: string; offset: number | null }[];
   collisions: number;
+  /** Hull integrity left at the end, percent. */
+  hullPct: number;
+  /** Best Wave Rider streak multiplier and the points the streak and jumps banked. */
+  bestCombo: number;
+  rideBonus: number;
   totalIntakeL: number;
   maxSpeedKn: number;
   boat: string;
@@ -111,8 +156,11 @@ export const emptyHud = (): HudState => ({
   waterFrac: 0,
   intakeLps: 0,
   drainLps: 0,
+  netLps: 0,
   leakLps: 0,
   pumping: false,
+  hull: 1,
+  wave: { relDeg: 0, angleDeg: 45, bad: 0, rough: 0, clean: false, mult: 1, next: 0, air: 0 },
   windKn: 0,
   windFrom: 0,
   gustKn: 0,

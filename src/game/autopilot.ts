@@ -3,6 +3,7 @@
 import { clamp, wrapAngle } from '../core/math';
 import type { Boat } from '../sim/boat';
 import { SLIP } from '../sim/geography';
+import { idealSheet } from '../sim/sail';
 import type { Controls } from './input';
 
 export interface Waypoint {
@@ -97,7 +98,13 @@ export class Autopilot {
       const turn = Math.min(1, Math.abs(err) / 0.6);
       out.throttle = clamp(this.cruise * (1 - 0.35 * turn), 0, 1);
     }
+    // a sloop under sail trims to the ideal angle of attack
+    // (running deep it keeps the boom sheeted well in, like a preventer, so a wobble cannot gybe it)
     out.sheet = 0.5;
+    if (boat.spec.sail && boat.sailUp) {
+      const gamma = Math.abs(boat.awa);
+      out.sheet = gamma > 2.5 ? Math.min(0.4, idealSheet(gamma)) : idealSheet(gamma);
+    }
     out.pump = boat.water.litres > 0.45 * (boat.capacityLimit ?? 1e9);
   }
 }

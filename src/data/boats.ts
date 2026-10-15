@@ -203,7 +203,7 @@ function makeConsole(): BoatSpec {
     bumpers: h.bumpers,
     engine,
     cockpit: { x0: -3.3, x1: 0.9, halfWidth: 0.95, soleY: 0.12, scupper: 0.028, scupperX: -3.3 },
-    wind: { front: 3.4, side: 7.5, cdFront: 0.8, cdSide: 1.0, ceX: -0.2, ceY: 1.7 },
+    wind: { front: 3.4, side: 7.5, cdFront: 0.8, cdSide: 1.0, ceX: h.cgX - o.trimBias - 0.45, ceY: 1.7 },
     keel: 1,
     flare: o.flare,
     keelDepth: 0.55,
@@ -216,7 +216,10 @@ function makeConsole(): BoatSpec {
     trim: { plane: 0.06, hump: 0.1, gain: 900 },
     topSpeed: 22,
     camera: { distance: 17, height: 6.2, look: 5, helm: [-0.05, 1.75, 0] },
-    stats: { speed: 0.62, handling: 0.82, stability: 0.55, dryness: 0.6, windage: 0.5 },
+    stats: { speed: 0.62, handling: 0.82, stability: 0.55, dryness: 0.6, windage: 0.5, tide: 0.35 },
+    strength: 6.2,
+    skill: 2,
+    scoreMult: 1,
   };
 }
 
@@ -275,7 +278,7 @@ function makeGoFast(): BoatSpec {
       washSteer: 0.6,
     },
     cockpit: { x0: -4.5, x1: -0.2, halfWidth: 0.8, soleY: 0.1, scupper: 0.016, scupperX: -4.5 },
-    wind: { front: 2.4, side: 5.8, cdFront: 0.55, cdSide: 0.9, ceX: -0.4, ceY: 1.0 },
+    wind: { front: 2.4, side: 5.8, cdFront: 0.55, cdSide: 0.9, ceX: h.cgX - o.trimBias - 0.5, ceY: 1.0 },
     keel: 1.1,
     flare: o.flare,
     keelDepth: 0.6,
@@ -288,7 +291,10 @@ function makeGoFast(): BoatSpec {
     trim: { plane: 0.085, hump: 0.12, gain: 1500 },
     topSpeed: 32,
     camera: { distance: 21, height: 6.8, look: 6.5, helm: [-1.9, 1.25, 0] },
-    stats: { speed: 1, handling: 0.7, stability: 0.4, dryness: 0.38, windage: 0.3 },
+    stats: { speed: 1, handling: 0.7, stability: 0.4, dryness: 0.38, windage: 0.3, tide: 0.15 },
+    strength: 7.0,
+    skill: 4,
+    scoreMult: 1.2,
   };
 }
 
@@ -347,7 +353,7 @@ function makeCruiser(): BoatSpec {
       washSteer: 0.5,
     },
     cockpit: { x0: -5.9, x1: -3.6, halfWidth: 1.7, soleY: 0.5, scupper: 0.04, scupperX: -5.9 },
-    wind: { front: 13, side: 34, cdFront: 0.9, cdSide: 1.1, ceX: 0, ceY: 2.9 },
+    wind: { front: 13, side: 34, cdFront: 0.9, cdSide: 1.1, ceX: h.cgX - o.trimBias + 1.3, ceY: 2.9 },
     keel: 1.3,
     flare: o.flare,
     keelDepth: 1.0,
@@ -360,7 +366,10 @@ function makeCruiser(): BoatSpec {
     trim: { plane: 0.035, hump: 0.05, gain: 12000 },
     topSpeed: 13.5,
     camera: { distance: 28, height: 10, look: 8, helm: [0.6, 3.9, 0] },
-    stats: { speed: 0.5, handling: 0.4, stability: 0.9, dryness: 0.92, windage: 0.9 },
+    stats: { speed: 0.5, handling: 0.4, stability: 0.9, dryness: 0.92, windage: 0.9, tide: 0.4 },
+    strength: 7.9,
+    skill: 2,
+    scoreMult: 0.95,
   };
 }
 
@@ -391,7 +400,7 @@ function makeSloop(): BoatSpec {
   };
   const h = buildHull(o);
   HULL_OPTS.set('sloop', o);
-  const sail: SailSpec = { area: 44, x: -0.2, y: 4.8, mastX: 0.9, mastHeight: 12.5 };
+  const sail: SailSpec = { area: 34, x: -0.2, y: 4.8, mastX: 0.9, mastHeight: 12.5 };
   return {
     id: 'sloop',
     name: 'Pelican 30',
@@ -410,9 +419,9 @@ function makeSloop(): BoatSpec {
     engine: {
       x: -4.3,
       y: -0.9,
-      thrust: 4600,
-      zeroThrustSpeed: 7.5,
-      reverse: 0.6,
+      thrust: 3300,
+      zeroThrustSpeed: 6.2,
+      reverse: 0.55,
       steerMax: 0.6,
       steerRate: 0.9,
       rudder: 2200,
@@ -421,7 +430,7 @@ function makeSloop(): BoatSpec {
     },
     sail,
     cockpit: { x0: -4.2, x1: -2.2, halfWidth: 0.9, soleY: 0.25, scupper: 0.018, scupperX: -4.2 },
-    wind: { front: 2.2, side: 5.4, cdFront: 0.7, cdSide: 1.0, ceX: 0.2, ceY: 2.2 },
+    wind: { front: 2.2, side: 5.4, cdFront: 0.7, cdSide: 1.0, ceX: h.cgX - o.trimBias + 0.3, ceY: 2.2 },
     keel: 3.0,
     flare: o.flare,
     keelDepth: 1.7,
@@ -430,11 +439,16 @@ function makeSloop(): BoatSpec {
     waterMassScale: 2.6,
     pump: 4.0,
     planing: { speed: 99, fraction: 0, aoa: 0.05 },
+    // a 9 m keelboat cannot be driven much past 9 knots, however hard it is pushed
+    hullSpeed: 4.6,
     hump: o.hump,
     trim: { plane: 0, hump: 0, gain: 0 },
-    topSpeed: 6.5,
+    topSpeed: 5.2,
     camera: { distance: 22, height: 7.5, look: 6, helm: [-3.4, 1.95, 0] },
-    stats: { speed: 0.25, handling: 0.45, stability: 0.8, dryness: 0.7, windage: 0.65 },
+    stats: { speed: 0.28, handling: 0.3, stability: 0.8, dryness: 0.7, windage: 0.5, tide: 0.95 },
+    strength: 9.5,
+    skill: 5,
+    scoreMult: 1.6,
   };
 }
 
@@ -493,7 +507,7 @@ function makePontoon(): BoatSpec {
       washSteer: 0.9,
     },
     cockpit: { x0: -3.2, x1: 2.4, halfWidth: 1.1, soleY: 0.42, scupper: 0.02, scupperX: -3.2 },
-    wind: { front: 5, side: 13, cdFront: 1.0, cdSide: 1.15, ceX: 0, ceY: 1.6 },
+    wind: { front: 5, side: 13, cdFront: 1.0, cdSide: 1.15, ceX: h.cgX - o.trimBias - 1.1, ceY: 1.6 },
     keel: 0.5,
     flare: o.flare,
     keelDepth: 0.4,
@@ -506,7 +520,10 @@ function makePontoon(): BoatSpec {
     trim: { plane: 0.012, hump: 0.03, gain: 700 },
     topSpeed: 8.8,
     camera: { distance: 17, height: 6.2, look: 4.5, helm: [2.1, 1.95, 0.7] },
-    stats: { speed: 0.3, handling: 0.6, stability: 0.45, dryness: 0.3, windage: 1 },
+    stats: { speed: 0.3, handling: 0.6, stability: 0.45, dryness: 0.3, windage: 1, tide: 0.7 },
+    strength: 6.2,
+    skill: 3,
+    scoreMult: 1.05,
   };
 }
 

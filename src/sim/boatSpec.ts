@@ -115,6 +115,8 @@ export interface BoatSpec {
   planing: { speed: number; fraction: number; aoa: number };
   /** Resistance hump near the transition to planing (drag multiplier gain at `speed`). */
   hump: { speed: number; width: number; gain: number };
+  /** Displacement hull speed (m/s): resistance climbs steeply past it. Absent on planing hulls. */
+  hullSpeed?: number;
   /** Running trim: bow-up angle (rad) once planing, extra bow-up while climbing the hump, and torque gain. */
   trim: { plane: number; hump: number; gain: number };
   /** Nominal top speed (m/s) for UI and AI. */
@@ -122,8 +124,24 @@ export interface BoatSpec {
   /** Chase camera. */
   camera: { distance: number; height: number; look: number; helm: [number, number, number] };
   /** UI stat bars 0..1. */
-  stats: { speed: number; handling: number; stability: number; dryness: number; windage: number };
+  stats: {
+    speed: number;
+    handling: number;
+    stability: number;
+    dryness: number;
+    windage: number;
+    /** How hard the tidal current shoves this hull around. */
+    tide: number;
+  };
+  /** Wave-impact speed (m/s) the hull shrugs off; anything harder wears the hull down. */
+  strength: number;
+  /** How hard the boat is to drive well, 1 (forgiving) to 5 (expert). */
+  skill: 1 | 2 | 3 | 4 | 5;
+  /** Score multiplier for taking the harder boat. */
+  scoreMult: number;
 }
+
+export const SKILL_LABELS = ['', 'Easy', 'Easy', 'Moderate', 'Hard', 'Expert'] as const;
 
 export const RHO_W = 1025;
 export const RHO_A = 1.2;

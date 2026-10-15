@@ -4,7 +4,15 @@
 import { Group, Mesh } from 'three/webgpu';
 import { sheerAt } from '../../../data/boats';
 import type { BoatSpec } from '../../../sim/boatSpec';
-import { hullMeshes, hullOpts, type ModelParts, makeFlag, makeHullShape, navLights } from '../common';
+import {
+  addEnsign,
+  hullMeshes,
+  hullOpts,
+  type ModelParts,
+  makeFlag,
+  makeHullShape,
+  navLights,
+} from '../common';
 import { gunwaleLine, hullStrip } from '../loft';
 import { canvas, gel, glass, matte, metal, teak } from '../materials';
 import { PartBuilder } from '../parts';
@@ -137,5 +145,10 @@ export function buildConsole(spec: BoatSpec, paint: ConsolePaint = CONSOLE_PAINT
   flag.position.set(-0.7, 3.35, 0.6);
   root.add(flag);
 
-  return { group: root, engines: [eng], flags: [flag], wheel };
+  // national ensign on a stern staff, starboard quarter
+  const spb = new PartBuilder();
+  const ensign = addEnsign(spb, [-3.5, sheerAt(o, 0.04) - 0.02, 0.88], 1.3, 0.8);
+  root.add(spb.build(), ensign);
+
+  return { group: root, engines: [eng], flags: [flag, ensign], wheel };
 }

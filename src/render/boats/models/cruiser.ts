@@ -3,7 +3,15 @@
 import { Group, Mesh } from 'three/webgpu';
 import { sheerAt } from '../../../data/boats';
 import type { BoatSpec } from '../../../sim/boatSpec';
-import { hullMeshes, hullOpts, type ModelParts, makeFlag, makeHullShape, navLights } from '../common';
+import {
+  addEnsign,
+  hullMeshes,
+  hullOpts,
+  type ModelParts,
+  makeFlag,
+  makeHullShape,
+  navLights,
+} from '../common';
 import { gunwaleLine, hullStrip } from '../loft';
 import { canvas, gel, glass, matte, metal, teak } from '../materials';
 import { PartBuilder } from '../parts';
@@ -126,11 +134,12 @@ export function buildCruiser(spec: BoatSpec, paint: CruiserPaint = CRUISER_PAINT
   );
   root.add(pb.build());
 
-  const f1 = makeFlag(0.55, 0.34, '#ff8f7a', '#fffaf3', 3);
-  f1.position.set(-6.7, 1.9, 0.0);
+  // national ensign on a stern staff over the swim platform; a club burgee on the radar arch
+  const spb = new PartBuilder();
+  const f1 = addEnsign(spb, [-6.75, 1.0, 0.0], 1.45, 1.0);
   const f2 = makeFlag(0.5, 0.26, '#3b9fb5', '#fffaf3', 2);
   f2.position.set(-2.0, fbY + 4.1, 0);
-  root.add(f1, f2);
+  root.add(spb.build(), f1, f2);
 
   return { group: root, engines: [], flags: [f1, f2] };
 }

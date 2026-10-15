@@ -17,6 +17,8 @@ import { Boat } from '../sim/boat';
 import { makeBoatEnv } from '../sim/boatEnv';
 import { Environment } from '../sim/environment';
 import { Hazards } from '../sim/hazards';
+import { idealSheet } from '../sim/sail';
+import { CLEAN_PERIOD } from '../sim/waveRide';
 import { GameCamera } from './camera';
 import { type Course, crossedGate, makeCourse, pathProgress } from './course';
 import { Docking } from './docking';
@@ -87,6 +89,11 @@ export class Game {
   private resumePhase: Phase = 'playing';
   private lastRespawn = -10;
   private lastBurstToast = -10;
+  private lastHitToast = -10;
+  private lastHeelToast = -10;
+  private lastIronsToast = -10;
+  /** Points banked by clean landings after jumps (the streak keeps its own in `ride.bonus`). */
+  private airBonus = 0;
   private warned = new Set<string>();
   private readonly tmpQ = new Quaternion();
   private readonly dbgFocus = new Vector3();
@@ -260,6 +267,7 @@ export class Game {
     this.player.reset(s.x, s.z, s.heading, this.benv);
     this.player.capacityLimit = spec.capacity * diff.capacity;
     this.player.water.autoBilge = diff.autoBilge;
+    this.player.leakScale = diff.leakScale;
     this.model = new BoatModel(spec);
     this.model.root.traverse((o) => {
       o.frustumCulled = false;
@@ -287,6 +295,7 @@ export class Game {
     this.collisions = 0;
     this.maxSpeed = 0;
     this.strandedT = 0;
+    this.airBonus = 0;
     this.docking.reset();
     this.hazards.generate(this.course, diff.hazards);
     this.gateOffsets = this.course.gates.map(() => null);
@@ -357,8 +366,14 @@ export class Game {
     );
     const b = this.player;
     const keep = b.water.volume * 0.5;
+    const keepHull = b.hull;
+    const keepRide = b.ride.bonus;
     b.reset(x, z, heading, this.benv);
     b.water.volume = keep;
+    // a lift back onto the course patches the seams but does not rebuild the hull
+    b.hull = keepHull;
+    b.ride.bonus = keepRide;
+    b.leakScale = difficultyById(this.cfg.difficulty).leakScale;
     b.capacityLimit = boatById(this.cfg.boat).capacity * difficultyById(this.cfg.difficulty).capacity;
     b.water.autoBilge = difficultyById(this.cfg.difficulty).autoBilge;
     this.penalty += 20;
@@ -403,13 +418,16 @@ export class Game {
           bonus: 0,
         }
       : null;
+    const rideBonus = this.player.ride.bonus + this.airBonus;
     const sc = computeScore({
       time,
       par,
       peakFrac: peak / capacityL,
       offsets: this.gateOffsets,
       collisions: this.collisions,
-      difficultyMult: diff.score,
+      difficultyMult: diff.score * spec.scoreMult,
+      hull: this.player.hull,
+      ride: rideBonus,
       dock: hasDock
         ? {
             docked,
@@ -429,6 +447,7 @@ export class Game {
       finished: ['Through the Cut!', 'You cleared the sea buoy.'],
       docked: ['Docked!', `Tied up in slip ${this.slipNumber()} with the whole marina watching.`],
       swamped: ['Swamped!', `You shipped more than ${Math.round(capacityL)} L and went down.`],
+      wrecked: ['Hull breached!', 'The sea pounded the hull to pieces. Take big waves at 45°, not head-on.'],
       capsized: ['Capsized!', 'The sea rolled you over.'],
       stranded: ['Aground!', 'Stuck on the bottom with the tide going out.'],
       timeout: [
@@ -453,6 +472,9 @@ export class Game {
       capacityL: Math.round(capacityL),
       gates: this.course.gates.map((g, i) => ({ label: g.label, offset: this.gateOffsets[i] ?? null })),
       collisions: this.collisions,
+      hullPct: Math.round(this.player.hull * 100),
+      bestCombo: this.player.ride.bestCombo + 1,
+      rideBonus: Math.round(Math.min(900, rideBonus)),
       totalIntakeL: Math.round(this.player.water.totalIntake),
       maxSpeedKn: Math.round(this.maxSpeed * KNOTS),
       boat: spec.name,
@@ -487,7 +509,11 @@ export class Game {
       this.env.blend(dt);
     }
 
-    if (phase === 'menu' || phase === 'countdown') this.hold(dt);
+    if (phase === 'menu' || phase === 'countdown') {
+      this.hold(dt);
+      this.player.hits.length = 0;
+      this.player.ride.events.length = 0;
+    }
 
     if (phase === 'countdown') {
       this.countdownT -= dt;
@@ -685,13 +711,16 @@ export class Game {
       if (dockMode && im.speed > 0.45) this.docking.touches++;
       if (im.speed > hitSpeed) {
         this.collisions++;
-        const leak = Math.min(7, (im.speed - 0.8 * hitSpeed) * 0.45 * diff.leakScale);
+        const harm = Math.min(0.5, (im.speed - 0.8 * hitSpeed) * 0.045);
         if (im.hard) {
-          b.water.leak = Math.min(9, b.water.leak + leak);
+          b.damage(harm);
           this.cam.addShake(Math.min(1, im.speed / 9));
           this.splash(0.5);
           this.audio.hit(im.speed);
-          this.toast(`Hull strike! Leaking ${b.water.leak.toFixed(1)} L/s`, 'bad');
+          this.toast(
+            `Hull strike! Hull ${Math.round(b.hull * 100)}% · leaking ${b.water.leak.toFixed(1)} L/s`,
+            'bad',
+          );
         }
       } else if (dockMode && im.speed > 0.45) {
         this.audio.hit(Math.max(1.2, im.speed * 2));
@@ -719,6 +748,8 @@ export class Game {
       w.burst = 0;
     }
 
+    this.waveEvents(playing);
+    this.sailEvents(playing);
     if (!playing) return;
 
     // floating hazards: run over a crab-pot float and the line wraps your prop
@@ -765,7 +796,8 @@ export class Game {
     }
 
     // failure
-    if (b.sinking && b.sinkT > 0.35) this.finish('swamped');
+    if (b.wrecked) this.finish('wrecked');
+    else if (b.sinking && b.sinkT > 0.35) this.finish('swamped');
     else if (b.capsized) this.finish('capsized');
     if (b.grounded > 0.25 && b.sog < 0.9 && !dockMode) this.strandedT += dt;
     else this.strandedT = Math.max(0, this.strandedT - dt * 0.5);
@@ -787,12 +819,104 @@ export class Game {
       this.warned.delete('half');
       this.warned.delete('crit');
     }
+    if (b.hull < 0.5 && !this.warned.has('hull50')) {
+      this.warned.add('hull50');
+      this.toast('Hull at 50% — ease the throttle and take the waves at 45°', 'warn', 3.6);
+      this.audio.alarm(false);
+    }
+    if (b.hull < 0.25 && !this.warned.has('hull25')) {
+      this.warned.add('hull25');
+      this.toast('HULL FAILING — get out of the weather!', 'bad', 3.6);
+      this.audio.alarm(true);
+    }
     // the run clock
     const left = this.runLimit() - (this.elapsed + this.penalty);
     if (!dockMode && left < 30 && !this.warned.has('time')) {
       this.warned.add('time');
       this.toast('30 seconds on the clock!', 'warn', 3);
       this.audio.alarm(false);
+    }
+  }
+
+  /** Toasts, shake and score for wave hits, the Wave Rider streak and jumps. */
+  private waveEvents(playing: boolean): void {
+    const b = this.player;
+    const ride = b.ride;
+    for (const h of b.hits) {
+      if (!playing) break;
+      this.cam.addShake(Math.min(0.8, h.speed / 11));
+      if (h.kind === 'slap') {
+        this.rw.spray.burst(b, 0.8);
+        this.splash(0.6);
+        this.audio.splash(0.8);
+        if (this.clock - this.lastHitToast > 4) {
+          this.lastHitToast = this.clock;
+          this.toast('Broadside wave! Quarter the sea at 45°', 'bad', 2.8);
+        }
+      } else if (h.damage > 0.012 && this.clock - this.lastHitToast > 3) {
+        this.lastHitToast = this.clock;
+        this.toast(
+          `Slammed! −${Math.max(1, Math.round(h.damage * 100))}% hull · take it at 45° or ease off`,
+          'bad',
+          2.8,
+        );
+      }
+    }
+    b.hits.length = 0;
+    for (const e of ride.events) {
+      if (!playing) break;
+      if (e.kind === 'combo') {
+        this.toast(`Wave Rider ×${e.level + 1}`, 'good', 1.5);
+        this.audio.gate(true, e.level);
+        this.rw.spray.burst(b, 0.35);
+      } else if (e.kind === 'broken') {
+        if (e.level >= 2) this.toast(`Streak lost (×${e.level + 1})`, 'warn', 1.8);
+      } else if (e.kind === 'air') {
+        const t = e.time.toFixed(1);
+        if (e.grade === 'smooth') {
+          const pts = Math.round(15 * Math.min(e.time, 3) * Math.sqrt(ride.multiplier) * (0.6 + ride.rough));
+          this.airBonus += pts;
+          this.toast(`Air ${t} s · stuck the landing! +${pts}`, 'good', 1.7);
+          this.audio.gate(true, 2);
+        } else if (e.grade === 'nose') {
+          this.toast(`Air ${t} s · nose-dive!`, 'warn', 1.8);
+        } else {
+          this.toast(`Air ${t} s · flat slap`, 'warn', 1.4);
+        }
+      }
+    }
+    ride.events.length = 0;
+  }
+
+  /** Tacks, gybes and being overpowered: what the sloop's rig is doing. */
+  private sailEvents(playing: boolean): void {
+    const b = this.player;
+    for (const e of b.sailEvents) {
+      if (!playing) break;
+      if (e.kind === 'tack') {
+        if (b.speed > 0.8) this.toast('Tack!', 'good', 1.3);
+      } else {
+        this.cam.addShake(Math.min(0.9, 0.25 + e.strength * 0.5));
+        this.audio.hit(3 + e.strength * 4);
+        this.toast(
+          e.strength > 0.5 ? 'Crash gybe! Sheet in before you run off' : 'Gybe',
+          e.strength > 0.5 ? 'bad' : 'warn',
+          2.4,
+        );
+      }
+    }
+    b.sailEvents.length = 0;
+    if (!playing || !b.spec.sail || !b.sailUp) return;
+    if (b.heelDeg > 24 || b.heelDeg < -24) {
+      if (this.clock - this.lastHeelToast > 6) {
+        this.lastHeelToast = this.clock;
+        this.toast('Overpowered! Ease the sheet (E) or bear away', 'warn', 2.6);
+      }
+    }
+    const gamma = Math.abs(b.awa);
+    if (gamma < 0.42 && b.speed < 1 && b.throttle < 0.1 && this.clock - this.lastIronsToast > 12) {
+      this.lastIronsToast = this.clock;
+      this.toast('In irons! Bear away, or use the motor to get the bow round', 'warn', 3);
     }
   }
 
@@ -826,6 +950,18 @@ export class Game {
     h.waterFrac = clamp(b.water.litres / Math.max(1, cap), 0, 1.2);
     h.intakeLps = b.water.intakeRate;
     h.drainLps = b.water.drainRate;
+    h.netLps = b.water.netRate;
+    h.hull = b.hull;
+    const r = b.ride;
+    const wv = h.wave;
+    wv.relDeg = (r.rel * 180) / Math.PI;
+    wv.angleDeg = (r.angle * 180) / Math.PI;
+    wv.bad = r.bad;
+    wv.rough = r.rough;
+    wv.clean = r.clean;
+    wv.mult = r.multiplier;
+    wv.next = r.combo >= 9 ? 1 : clamp(r.cleanT / CLEAN_PERIOD, 0, 1);
+    wv.air = b.airT;
     h.leakLps = b.water.leak;
     h.pumping = b.water.pumping || (b.water.autoBilge > 0 && b.water.litres > 0);
     env.windAt(b.pos.x, b.pos.z, this.wnd);
@@ -851,7 +987,33 @@ export class Game {
     this.pathHint = prog.idx;
     h.progress = this.phase === 'menu' ? 0 : clamp(prog.frac, 0, 1);
     h.countdown = this.phase === 'countdown' ? Math.max(0, this.countdownT) : 0;
-    h.sail = b.spec.sail ? { up: b.sailUp, sheet: b.sheet, luff: b.sailLuff, power: b.sailPower } : null;
+    if (b.spec.sail) {
+      const gamma = Math.abs(b.awa);
+      const ideal = idealSheet(gamma);
+      const status = !b.sailUp
+        ? 'down'
+        : gamma < 0.42
+          ? 'irons'
+          : gamma > 2.75 && b.sheet > 0.7
+            ? 'gybe'
+            : b.sailAlpha < 0.07
+              ? 'luff'
+              : b.sailAlpha > 0.38
+                ? 'stall'
+                : 'drawing';
+      h.sail = {
+        up: b.sailUp,
+        sheet: b.sheet,
+        ideal,
+        awaDeg: (b.awa * 180) / Math.PI,
+        awsKn: b.appWind * KNOTS,
+        boomDeg: b.sailUp ? (b.boomSide * b.boomAngle * 180) / Math.PI : 0,
+        luff: b.sailLuff,
+        power: b.sailPower,
+        heelDeg: b.heelDeg,
+        status,
+      };
+    } else h.sail = null;
     h.dock = this.docking.active ? this.docking.status : null;
     h.timeLeft = this.docking.active ? 0 : Math.max(0, this.runLimit() - (this.elapsed + this.penalty));
     h.foul = b.foulT;

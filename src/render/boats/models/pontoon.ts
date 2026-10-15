@@ -2,7 +2,7 @@
 
 import { Group } from 'three/webgpu';
 import type { BoatSpec } from '../../../sim/boatSpec';
-import { type ModelParts, makeFlag, navLights } from '../common';
+import { addEnsign, type ModelParts, makeFlag, navLights } from '../common';
 import { bulb, canvas, flagMaterial, gel, matte, metal, teak } from '../materials';
 import { PartBuilder, type V3 } from '../parts';
 
@@ -102,9 +102,10 @@ export function buildPontoon(spec: BoatSpec): ModelParts {
     root.add(f);
     flags.push(f);
   }
-  const pole = makeFlag(0.6, 0.35, '#ff8f7a', '#fffaf3', 3);
-  pole.position.set(-0.85, 3.55, -0.15);
-  root.add(pole);
+  // national ensign flying from the top of the tiki hut
+  const hpb = new PartBuilder();
+  const pole = addEnsign(hpb, [-0.85, 3.5, -0.15], 0.65, 0.95);
+  root.add(hpb.build(), pole);
   flags.push(pole);
   void flagMaterial;
   void canvas;

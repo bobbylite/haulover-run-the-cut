@@ -27,6 +27,7 @@ function run(boatId: string, weather: string, cruise: number, diffId: string): R
   boat.reset(course.start.x, course.start.z, course.start.heading, benv);
   boat.capacityLimit = spec.capacity * diff.capacity;
   boat.water.autoBilge = diff.autoBilge;
+  boat.leakScale = diff.leakScale; // as the game sets it: damage opens seams, more so on the harder tiers
   const ap = new Autopilot(course.path, cruise);
   const ctl = { throttle: 0, steer: 0, sheet: 0.5, pump: false };
   const dt = 1 / 30;
@@ -85,4 +86,70 @@ describe('balance (autopilot through the Cut, ebb tide)', () => {
     const lg = run('cruiser', 'squall', 0.7, 'legend');
     expect(lg.peakFrac).toBeGreaterThan(0.3);
   }, 90000);
+});
+
+// ---------------------------------------------------------------------------------------------------
+// The Pelican 30 is the hardest boat: a weak auxiliary motor, so the wind has to do the work.
+// ---------------------------------------------------------------------------------------------------
+
+function sloopRun(
+  route: 'outbound' | 'inbound',
+  tide: 'ebb' | 'flood',
+  sail: boolean,
+): { outcome: 'finish' | 'swamped' | 'wrecked' | 'capsized' | 'timeout'; time: number } {
+  const diff = difficultyById('weekender');
+  const env = new Environment();
+  env.setConditions(weatherById('breeze'), tide, diff, true);
+  const benv = makeBoatEnv(env);
+  const course = makeCourse(route, diff.gateScale);
+  const spec = boatById('sloop');
+  const boat = new Boat(spec);
+  boat.reset(course.start.x, course.start.z, course.start.heading, benv);
+  boat.capacityLimit = spec.capacity * diff.capacity;
+  boat.water.autoBilge = diff.autoBilge;
+  boat.leakScale = diff.leakScale;
+  boat.sailUp = sail;
+  const ap = new Autopilot(course.path, 0.8);
+  const ctl = { throttle: 0, steer: 0, sheet: 0.5, pump: false };
+  const dt = 1 / 30;
+  const goal = course.path[course.path.length - 1]!.x;
+  const east = goal > (course.path[0]?.x ?? 0);
+  let outcome: 'finish' | 'swamped' | 'wrecked' | 'capsized' | 'timeout' = 'timeout';
+  let t = 0;
+  for (let i = 0; i < 30 * 1100 && outcome === 'timeout'; i++) {
+    env.time += dt;
+    ap.update(boat, ctl, dt);
+    boat.setInput(ctl);
+    boat.update(dt, benv);
+    boat.impacts.length = 0;
+    boat.hits.length = 0;
+    boat.sailEvents.length = 0;
+    boat.ride.events.length = 0;
+    t = i * dt;
+    if (boat.wrecked) outcome = 'wrecked';
+    else if (boat.sinking) outcome = 'swamped';
+    else if (boat.capsized) outcome = 'capsized';
+    else if (east ? boat.pos.x > goal - 10 : boat.pos.x < goal + 10) outcome = 'finish';
+  }
+  return { outcome, time: t };
+}
+
+describe('the sloop (breeze, Weekender)', () => {
+  it('runs out to sea with the ebb, under sail or on the motor', () => {
+    expect(sloopRun('outbound', 'ebb', true).outcome).toBe('finish');
+    expect(sloopRun('outbound', 'ebb', false).outcome).toBe('finish');
+  }, 120000);
+
+  it('comes home on the flood, with the tide and the wind behind it', () => {
+    const r = sloopRun('inbound', 'flood', true);
+    expect(r.outcome).toBe('finish');
+    expect(r.time).toBeLessThan(400);
+  }, 120000);
+
+  it('cannot motor home against the ebb: it needs its sails to make the Cut', () => {
+    const motor = sloopRun('inbound', 'ebb', false);
+    const sailing = sloopRun('inbound', 'ebb', true);
+    expect(motor.outcome).not.toBe('finish');
+    expect(sailing.outcome).toBe('finish');
+  }, 240000);
 });

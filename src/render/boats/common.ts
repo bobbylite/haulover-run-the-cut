@@ -7,7 +7,7 @@ import { HULL_OPTS, type HullOpts, sheerAt } from '../../data/boats';
 import type { BoatSpec } from '../../sim/boatSpec';
 import { shared } from '../shared';
 import { type HullShape, type Livery, loftShell, loftTransom } from './loft';
-import { bulb, flagMaterial, hullMaterial } from './materials';
+import { bulb, flagMaterial, hullMaterial, metal, usFlagMaterial } from './materials';
 import type { PartBuilder, V3 } from './parts';
 
 type N = any;
@@ -133,6 +133,31 @@ export function makeFlag(w: number, h: number, c1: string, c2: string, bands = 3
   mesh.castShadow = false;
   pivot.add(mesh);
   return pivot;
+}
+
+/** The Stars and Stripes on a pivot (hoist at the pivot, rotated downwind each frame). */
+export function makeUsFlag(width: number): Group {
+  const pivot = new Group();
+  const h = width / 1.9;
+  const geo = new PlaneGeometry(width, h, 14, 4).translate(width / 2, 0, 0);
+  const mesh = new Mesh(geo, usFlagMaterial());
+  mesh.castShadow = false;
+  pivot.add(mesh);
+  return pivot;
+}
+
+/**
+ * A stern staff with the national ensign: adds the pole and finial to `pb` and returns the flag pivot for
+ * the model's `flags` list (so it streams along the apparent wind). `base` is the foot of the staff.
+ */
+export function addEnsign(pb: PartBuilder, base: V3, height: number, width = 0.8): Group {
+  const top: V3 = [base[0], base[1] + height, base[2]];
+  const staff = metal('#eef2f6', 0.3);
+  pb.rod(staff, base, top, 0.012, 8);
+  pb.sphere(metal('#ffd36e', 0.25), 0.026, { pos: top }, 8);
+  const flag = makeUsFlag(width);
+  flag.position.set(top[0], top[1] - width / 3.8 - 0.045, top[2]);
+  return flag;
 }
 
 /** Red / green sidelights and a white stern light. */

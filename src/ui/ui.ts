@@ -9,6 +9,7 @@ import { pathProgress } from '../game/course';
 import type { Game } from '../game/game';
 import { saveSettings } from '../game/settings';
 import type { GameConfig, Phase, ToastMsg } from '../game/state';
+import { SKILL_LABELS } from '../sim/boatSpec';
 import { DockRadar } from './dockRadar';
 import { boatIcon, dropIcon, starIcon, weatherIcon } from './icons';
 import { MiniMap } from './minimap';
@@ -60,7 +61,7 @@ const vialSvg = (): string => `
   </defs>
   <rect x="10" y="8" width="46" height="132" rx="23" fill="#fff" fill-opacity=".34"/>
   <g clip-path="url(#vclip)">
-    <g id="vWater" style="transform: translateY(calc(140px - var(--f, 0) * 132px)); transition: transform .5s cubic-bezier(.2,.8,.2,1)">
+    <g id="vWater" style="transform: translateY(calc(140px - var(--f, 0) * 132px)); opacity: var(--wo, 0); transition: transform .5s cubic-bezier(.2,.8,.2,1), opacity .3s">
       <g id="vTilt" style="transform-origin: 33px 7px; transform: rotate(var(--tilt, 0deg)); transition: transform .25s ease-out">
         <g style="animation: vwave 2.4s linear infinite"><path d="${wavePath()}" fill="url(#wg2)" transform="translate(-23 -3)"/></g>
         <g style="animation: vwave 3.7s linear infinite reverse"><path d="${wavePath()}" fill="url(#wg)" transform="translate(-23 1)"/></g>
@@ -72,6 +73,56 @@ const vialSvg = (): string => `
   <g stroke="oklch(0.31 0.075 285 / .45)" stroke-width="1.6" stroke-linecap="round"><path d="M52 41h-6M52 74h-6M52 107h-6"/></g>
   <style>@keyframes vwave { to { transform: translateX(-46px) } }</style>
 </svg>`;
+
+/** Heading-up dial: the wave axis is a line through the boat; the green wedges mark the 45 degree lines. */
+const SAIL_STATUS: Record<'down' | 'irons' | 'luff' | 'stall' | 'drawing' | 'gybe', string> = {
+  down: 'Sails down · F to hoist',
+  irons: 'In irons · bear away',
+  luff: 'Luffing · sheet in (Q)',
+  stall: 'Stalled · ease sheet (E)',
+  drawing: 'Drawing ✓',
+  gybe: 'Gybe risk · sheet in (Q)',
+};
+
+const waveDialSvg = (): string => {
+  const zone = (a: number) => {
+    const p = (deg: number, r: number) => {
+      const t = (deg * Math.PI) / 180;
+      return `${(Math.sin(t) * r).toFixed(2)} ${(-Math.cos(t) * r).toFixed(2)}`;
+    };
+    return `<path d="M${p(a - 9, 41)} A41 41 0 0 1 ${p(a + 9, 41)}" />`;
+  };
+  return `
+<svg class="wdial" viewBox="-50 -50 100 100" aria-hidden="true">
+  <circle r="46" class="ring" />
+  <g class="zones">${[45, 135, 225, 315].map(zone).join('')}</g>
+  <g id="wAxis" style="transform: rotate(var(--rel, 0deg)); transition: transform .18s ease-out">
+    <path class="axis" d="M0 -37V37" />
+    <path class="head" d="M0 -43l-5 9h10zM0 43l-5 -9h10z" />
+  </g>
+  <path class="hull-ic" d="M0 -14c6 5 7 15 6 26h-12c-1 -11 0 -21 6 -26z" />
+</svg>`;
+};
+
+/** Top-down sail diagram, bow up: the no-go wedge, the boom, and the apparent wind arrow. */
+const sailDialSvg = (): string => {
+  const w = (35 * Math.PI) / 180;
+  const nx = (Math.sin(w) * 44).toFixed(2);
+  const ny = (-Math.cos(w) * 44).toFixed(2);
+  return `
+<svg class="sdial" viewBox="-50 -50 100 100" aria-hidden="true">
+  <circle r="46" class="ring" />
+  <path class="nogo" d="M0 0L-${nx} ${ny}A44 44 0 0 1 ${nx} ${ny}Z" />
+  <path class="hull-ic" d="M0 -22c9 7 11 24 9 42h-18c-2 -18 0 -35 9 -42z" />
+  <g id="sBoom" style="transform: rotate(var(--boom, 0deg)); transform-origin: 0 -6px; transition: transform .25s ease-out">
+    <path class="boom" d="M0 -6V24" />
+  </g>
+  <g id="sAwaArrow" style="transform: rotate(var(--awa, 0deg)); transition: transform .2s ease-out">
+    <path class="wind" d="M0 -46V-26" />
+    <path class="windhead" d="M0 -24l-5 -9h10z" />
+  </g>
+</svg>`;
+};
 
 function arcPath(cx: number, cy: number, r: number, a0: number, a1: number): string {
   const p = (a: number) => {
@@ -321,7 +372,7 @@ export class UI {
     <div class="read num" id="dkRead"></div>
   </div>
   <div class="toast-stack" id="toasts"></div>
-  <div class="hud-center"><div class="count" id="count"></div><div class="warning" id="warn" hidden></div></div>
+  <div class="hud-center"><div class="count" id="count"></div><div class="warning" id="warn" hidden></div><div class="airtag" id="airTag" hidden>AIR</div></div>
   <div class="hud-bottom-left glass hud-part" id="water">
     ${vialSvg()}
     <div class="readout">
@@ -330,6 +381,26 @@ export class UI {
       <div class="pill" id="inPill">${dropIcon()} <span id="wIn">+0.0 L/s</span></div>
       <div class="pill" id="pumpPill">⚙ pump <kbd>B</kbd></div>
       <div class="pill alarm" id="leakPill" hidden>leak <span id="wLeak">0</span> L/s</div>
+      <div class="pill hull" id="hullPill" title="Hull integrity"><span class="hullbar"><i id="hullFill"></i></span> hull <b class="num" id="hullPct">100</b>%</div>
+    </div>
+  </div>
+  <div class="hud-wave glass hud-part" id="waveDial" aria-hidden="true">
+    ${waveDialSvg()}
+    <div class="wtxt">
+      <span class="label">Waves</span>
+      <b class="num" id="wAng">45°</b>
+      <span class="wmsg" id="wMsg"></span>
+    </div>
+    <div class="combo" id="wCombo" hidden><b class="num" id="wMult">×1</b><i id="wComboFill"></i></div>
+  </div>
+  <div class="hud-sail glass hud-part" id="sailPanel" hidden>
+    ${sailDialSvg()}
+    <div class="sinfo">
+      <div class="label">Sail trim</div>
+      <div class="srow"><b class="num" id="sAws">0</b><small> kn apparent</small> <b class="num" id="sAwa">0°</b></div>
+      <div class="trim"><i class="ideal" id="sIdeal"></i><i class="knob" id="sSheet"></i></div>
+      <div class="status" id="sStatus">Drawing</div>
+      <div class="shint"><kbd>Q</kbd> in <kbd>E</kbd> out <kbd>F</kbd> sails</div>
     </div>
   </div>
   <div class="hud-bottom-center glass hud-part">
@@ -420,6 +491,23 @@ export class UI {
       'pumpPill',
       'leakPill',
       'wLeak',
+      'hullPill',
+      'hullFill',
+      'hullPct',
+      'waveDial',
+      'wAxis',
+      'wAng',
+      'wMsg',
+      'wCombo',
+      'wMult',
+      'wComboFill',
+      'airTag',
+      'sailPanel',
+      'sAws',
+      'sAwa',
+      'sIdeal',
+      'sSheet',
+      'sStatus',
       'kn',
       'steerDot',
       'wind',
@@ -568,7 +656,7 @@ export class UI {
       `<div class="bar" style="--v:${v}; --fill:${fill}"><i></i></div>`;
     const stat = (label: string, v: number, fill: string) => `<span>${label}</span>${bar(v, fill)}`;
     this.el.boatCard!.innerHTML = `
-      <div class="tagline">${spec.tagline}</div>
+      <div class="tagline"><span>${spec.tagline}</span><span class="skill-chip" data-level="${spec.skill}" title="How hard this boat is to drive well">${'★'.repeat(spec.skill)}${'☆'.repeat(5 - spec.skill)} <b>${SKILL_LABELS[spec.skill]}</b></span></div>
       <h2>${spec.name}</h2>
       <p>${spec.blurb}</p>
       <div class="stats">
@@ -577,6 +665,7 @@ export class UI {
         ${stat('Stability', spec.stats.stability, 'linear-gradient(90deg,var(--sun),var(--peach))')}
         ${stat('Dryness', spec.stats.dryness, 'linear-gradient(90deg,var(--aqua),var(--mint))')}
         ${stat('Windage', spec.stats.windage, 'linear-gradient(90deg,var(--peach),var(--coral))')}
+        ${stat('Tide', spec.stats.tide, 'linear-gradient(90deg,var(--sky),var(--aqua))')}
       </div>
       <div class="specs"><span><b>${spec.length.toFixed(1)} m</b> / ${ft(spec.length)}</span><span>top <b>${Math.round(spec.topSpeed * KNOTS)} kn</b></span><span>draft <b>${spec.keelDepth.toFixed(1)} m</b></span>${spec.sail ? '<span><b>sail + motor</b></span>' : ''}</div>`;
     this.el.wxBlurb!.textContent = w.blurb;
@@ -670,7 +759,9 @@ export class UI {
     const w = e.water!;
     const f = clamp(h.waterFrac, 0, 1);
     w.style.setProperty('--f', f.toFixed(3));
-    const tilt = clamp(g.player.water.tiltRoll * 57.3 * 0.7, -32, 32);
+    // an empty bilge shows an empty vial, not a sliver of sloshing water
+    w.style.setProperty('--wo', f > 0.006 ? '1' : '0');
+    const tilt = f > 0.006 ? clamp(g.player.water.tiltRoll * 57.3 * 0.7, -32, 32) : 0;
     w.style.setProperty('--tilt', `${tilt.toFixed(1)}deg`);
     const [w1, w2] =
       f < 0.4
@@ -682,12 +773,61 @@ export class UI {
     w.style.setProperty('--w2', w2!);
     e.wL!.textContent = h.litres.toFixed(0);
     e.wCap!.textContent = h.capacity.toFixed(0);
-    e.wIn!.textContent = `${h.intakeLps > 0.2 ? '+' : ''}${h.intakeLps.toFixed(1)} L/s`;
-    e.inPill!.classList.toggle('on', h.intakeLps > 1);
+    // the net rate: spray the scuppers throw straight back out is not water "in the boat"
+    const net = h.netLps;
+    const dry = h.litres < 0.5 && net < 0.3;
+    e.wIn!.textContent = dry ? 'dry' : `${net > 0.2 ? '+' : ''}${net.toFixed(1)} L/s`;
+    e.inPill!.classList.toggle('on', !dry && net > 1);
+    e.inPill!.classList.toggle('dry', dry);
     e.pumpPill!.classList.toggle('on', h.pumping);
     e.leakPill!.hidden = h.leakLps < 0.05;
     e.wLeak!.textContent = h.leakLps.toFixed(1);
     e.vigW!.style.setProperty('--w', clamp((h.waterFrac - 0.5) * 2, 0, 1).toFixed(2));
+
+    // hull integrity
+    const hp = clamp(h.hull, 0, 1);
+    e.hullFill!.style.setProperty('--v', hp.toFixed(3));
+    e.hullPct!.textContent = Math.round(hp * 100).toString();
+    e.hullPill!.dataset.state = hp < 0.25 ? 'crit' : hp < 0.6 ? 'low' : 'ok';
+
+    // wave dial: fades in once the sea is rough enough to matter
+    const wv = h.wave;
+    const on = wv.rough > 0.1 && h.phase === 'playing';
+    e.waveDial!.classList.toggle('on', on);
+    if (on) {
+      e.waveDial!.style.setProperty('--rel', `${wv.relDeg.toFixed(1)}deg`);
+      e.waveDial!.dataset.q = wv.bad < 0.2 ? 'good' : wv.bad < 0.55 ? 'ok' : 'bad';
+      e.wAng!.textContent = `${Math.round(wv.angleDeg)}°`;
+      e.wMsg!.textContent =
+        wv.bad < 0.2
+          ? 'clean line'
+          : wv.angleDeg < 30
+            ? 'head-on · turn 45°'
+            : wv.angleDeg > 60
+              ? 'broadside · turn 45°'
+              : 'nearly · 45°';
+      e.wCombo!.hidden = !(wv.mult > 1 || wv.clean);
+      e.wMult!.textContent = `×${wv.mult}`;
+      e.wComboFill!.style.setProperty('--p', wv.next.toFixed(3));
+    }
+    const air = e.airTag!;
+    air.hidden = !(wv.air > 0.25 && h.phase === 'playing');
+    if (!air.hidden) air.textContent = `AIR ${wv.air.toFixed(1)} s`;
+
+    // sail trim (the sloop only)
+    const sl = h.sail;
+    const sp = e.sailPanel!;
+    sp.hidden = !sl;
+    if (sl) {
+      sp.style.setProperty('--awa', `${sl.awaDeg.toFixed(1)}deg`);
+      sp.style.setProperty('--boom', `${(-sl.boomDeg).toFixed(1)}deg`);
+      sp.style.setProperty('--sheet', sl.sheet.toFixed(3));
+      sp.style.setProperty('--ideal', sl.ideal.toFixed(3));
+      sp.dataset.status = sl.status;
+      e.sAws!.textContent = sl.awsKn.toFixed(0);
+      e.sAwa!.textContent = `${Math.abs(Math.round(sl.awaDeg))}°${sl.awaDeg > 0 ? ' stbd' : ' port'}`;
+      e.sStatus!.textContent = SAIL_STATUS[sl.status];
+    }
 
     // dial + lever
     const p = clamp(h.speedKn / Math.max(1, h.topKn), 0, 1);
@@ -764,7 +904,9 @@ export class UI {
         <div><span class="label">Stayed dry</span><b class="num">${r.dryPct}%</b></div>
         <div><span class="label">Peak bilge</span><b class="num">${r.peakL}/${r.capacityL} L</b></div>
         <div><span class="label">Top speed</span><b class="num">${r.maxSpeedKn} kn</b></div>
+        <div><span class="label">Hull left</span><b class="num">${r.hullPct}%</b></div>
         <div><span class="label">Hull strikes</span><b class="num">${r.collisions}</b></div>
+        <div><span class="label">Wave Rider</span><b class="num">×${r.bestCombo} · +${r.rideBonus}</b></div>
         <div><span class="label">Water shipped</span><b class="num">${r.totalIntakeL} L</b></div>
       </div>
       ${r.dock ? `<div class="dockline">${r.dock.docked ? `Docked in ${r.dock.time.toFixed(0)} s · touched down at ${r.dock.speedKn.toFixed(1)} kn · ${r.dock.alignDeg.toFixed(0)}° off · ${r.dock.touches} bump${r.dock.touches === 1 ? '' : 's'} · <b>+${r.dock.bonus}</b>` : 'Never made it into the slip.'}</div>` : ''}

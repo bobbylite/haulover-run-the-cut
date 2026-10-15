@@ -71,5 +71,6 @@ export function makeBoatEnv(env: Environment, dyn?: DynamicObstacles): BoatEnv {
       env.waves.modulation(x, z, m);
       return m.c * env.sea.chopHeight + m.h * 0.7;
     },
+    axisAt: (x, z, out) => env.waves.axisAt(x, z, out),
   };
 }

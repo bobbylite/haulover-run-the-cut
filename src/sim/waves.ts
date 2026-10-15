@@ -44,6 +44,20 @@ export interface WaveSample {
   jac: number;
 }
 
+/** Dominant wave axis at a point (see `WaveField.axisAt`). */
+export interface WaveAxis {
+  /** Direction of the wave axis, radians in atan2(z, x) convention, modulo pi. */
+  angle: number;
+  /** Significant wave height proxy (m). */
+  hs: number;
+  /** 0..1: how aligned the wave trains are. */
+  coherence: number;
+  /** Direction the strongest wave train travels *towards* (atan2(z, x)); `angle` is this modulo pi. */
+  travel: number;
+}
+
+export const makeWaveAxis = (): WaveAxis => ({ angle: 0, hs: 0, coherence: 0, travel: 0 });
+
 export const makeWaveSample = (): WaveSample => ({ h: 0, vx: 0, vy: 0, vz: 0, nx: 0, ny: 1, nz: 0, jac: 1 });
 
 const SWELL_LEN = [78, 52, 34];
@@ -226,6 +240,43 @@ export class WaveField {
     o.ny = inv;
     o.nz = -ngz * inv;
     o.jac = (1 - mxx) * (1 - mzz) - mxz * mxz;
+  }
+
+  /**
+   * The dominant wave *axis* at a point (the line the wave trains travel along, modulo 180 degrees), a
+   * significant-height proxy, and how coherent the sea is. Components are weighted by their orbital speed
+   * and summed as double angles so opposed trains (swell vs. a standing haystack) reinforce one axis
+   * instead of cancelling.
+   */
+  axisAt(x: number, z: number, out: WaveAxis): void {
+    const m = this.mod;
+    this.modulation(x, z, m);
+    let c2 = 0;
+    let s2 = 0;
+    let wSum = 0;
+    let a2 = 0;
+    let wBest = 0;
+    let thBest = 0;
+    for (let i = 0; i < NUM_WAVES; i++) {
+      const g = i < SWELL_COUNT ? m.s : i < SWELL_COUNT + CHOP_COUNT ? m.c : m.h;
+      const a = (this.amp[i] as number) * g;
+      if (a <= 1e-4) continue;
+      const w = a * Math.sqrt(GRAVITY * (this.k[i] as number));
+      const th = Math.atan2(this.dirZ[i] as number, this.dirX[i] as number);
+      if (w > wBest) {
+        wBest = w;
+        thBest = th;
+      }
+      c2 += w * Math.cos(2 * th);
+      s2 += w * Math.sin(2 * th);
+      wSum += w;
+      a2 += a * a;
+    }
+    out.angle = wSum > 1e-6 ? 0.5 * Math.atan2(s2, c2) : 0;
+    out.coherence = wSum > 1e-6 ? Math.hypot(c2, s2) / wSum : 0;
+    out.travel = thBest;
+    // Hs = 4 sigma, with sigma^2 = sum(a^2)/2 for a sum of sinusoids
+    out.hs = 2.83 * Math.sqrt(a2);
   }
 
   /** Just the height (cheaper; used by camera / buoys). */
