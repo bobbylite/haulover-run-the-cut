@@ -1,24 +1,36 @@
 # HAULOVER — Run the Cut
 
-A cartoon, physics-driven boating game set in **Haulover Inlet, Miami**. Pick a boat, pick the weather and the
-tide, and run the Cut: a narrow channel between rock jetties where an ebb tide and an onshore wind stand the
-sea up into breaking "haystacks". Round the sea buoy, come home through the Cut, then thread an old piling
-field and dodge harbour traffic to park in your slip. Take on too much water and you go down; run out of
-time and the harbourmaster gives up on you.
+<p align="center">
+  <strong>A physics-driven boating game set in Haulover Inlet, Miami.</strong><br />
+  Take the boat through the inlet, survive the sea, and bring it home to the marina.
+</p>
 
-Built with **three.js WebGPU + TSL**, a hand-written boat physics engine and a fully procedural world — every
-wave, hull, palm tree, cloud, engine note and chord is generated at runtime. There are no model, texture or
-audio files. The whole game is a static single-page app that deploys to GitHub Pages.
+<p align="center">
+  <img src="docs/hero-golden.jpg" alt="A boat running the Cut at golden hour" width="100%" />
+</p>
 
-![Golden hour in the Cut](docs/hero-golden.jpg)
+Choose a boat, weather and tide, then run the narrow channel between Haulover's rock jetties. Round the sea
+buoy, return through the inlet, avoid hazards and harbour traffic, and dock in your slip. Ship too much water
+or run out of time and the run is over.
+
+Built with **three.js WebGPU + TSL**, a hand-written boat physics engine and a fully procedural world. Waves,
+hulls, palms, clouds, engine notes and music are generated at runtime—no model, texture or audio files required.
+The game is a static single-page app that can be hosted on GitHub Pages.
 
 ## Play
 
-- **Live:** `https://<your-user>.github.io/<your-repo>/` once you have deployed (see [Deploy](#deploy-to-github-pages)).
-- **Locally:** `npm install && npm run dev`, then open the printed URL.
+To run locally, use Node.js **22.12 or newer**:
+
+```bash
+npm install
+npm run dev
+```
+
+Open the local URL printed by Vite. The production build can be tested locally with `npm run build` followed by
+`npm run preview`.
 
 Best in a current Chrome, Edge or Safari 26 (WebGPU). Firefox and older browsers fall back to WebGL2
-automatically. Phones work in landscape with on-screen controls, but this is a desktop game first.
+automatically. Phones work in landscape with on-screen controls; the game is designed primarily for desktop.
 
 ## Highlights
 
@@ -34,13 +46,22 @@ automatically. Phones work in landscape with on-screen controls, but this is a d
 | **Hazards** | Crab-pot floats (run one over and the line fouls your prop) and drift logs that ride the tide and hit hard. |
 | **Sound** | Per-boat engines, wind, hull rush, surf, rain, thunder, gulls, gate chimes and a weather-aware generative score — all synthesised live with WebAudio. |
 
-| | |
-|---|---|
-| ![Tropical Squall at the mouth](docs/squall.jpg) | ![Moonlit Run](docs/night.jpg) |
-| ![The jetties](docs/jetties.jpg) | ![Docking challenge](docs/docking.jpg) |
+<details>
+<summary><strong>Explore the world</strong></summary>
 
-![Menu](docs/menu.jpg)
-![HUD](docs/hud.jpg)
+<p align="center">
+  <img src="docs/squall.jpg" alt="Tropical squall at the inlet mouth" width="49%" />
+  <img src="docs/night.jpg" alt="Moonlit run through the Cut" width="49%" />
+  <img src="docs/jetties.jpg" alt="The rock jetties at Haulover Inlet" width="49%" />
+  <img src="docs/docking.jpg" alt="The marina docking challenge" width="49%" />
+</p>
+
+<p align="center">
+  <img src="docs/menu.jpg" alt="Boat and conditions selection menu" width="49%" />
+  <img src="docs/hud.jpg" alt="In-game heads-up display" width="49%" />
+</p>
+
+</details>
 
 ## Controls
 
@@ -63,7 +84,7 @@ A gamepad works too (stick steer, triggers throttle, A pumps, X camera). On touc
 throttle lever and buttons appear during a run.
 
 URL parameters (handy for demos and testing): `?boat=gofast&weather=squall&tide=ebb&difficulty=captain&route=inbound`,
-`&route=full|outbound|inbound`, `&quality=low|medium|high`, `&webgl` to force the fallback renderer, `&debug` for a telemetry overlay, `&noui`.
+`route=full|outbound|inbound`, `quality=low|medium|high`, `webgl` to force the fallback renderer, `debug` for a telemetry overlay, and `noui`.
 
 ## How it works
 
@@ -107,7 +128,6 @@ fonts. Runtime dependencies: three.js and two font packages.
 ## Development
 
 ```bash
-npm install
 npm run dev          # Vite dev server with HMR
 npm run typecheck    # tsc --noEmit
 npm test             # Vitest: boat calibration, balance ladder, docking feasibility, environment, scoring, course, traffic
@@ -145,15 +165,15 @@ tests/       vitest: physics calibration, balance, environment, course, scoring,
 
 ## Deploy to GitHub Pages
 
-The repository ships with a workflow (`.github/workflows/deploy.yml`). To publish:
+The repository includes a GitHub Actions workflow at `.github/workflows/deploy.yml`. To publish:
 
-1. Create a GitHub repository and push this project to the `main` branch.
+1. Push the project to the `main` branch of a GitHub repository.
 2. In **Settings → Pages**, set **Source** to **GitHub Actions**.
 3. Push to `main` (or run the workflow manually). It type-checks, runs the tests, builds, and deploys.
 
-The build uses relative asset paths (`base: './'`) and has no client-side routing, so it works from any
-sub-path (`https://user.github.io/repo/`) or a custom domain. A `404.html` and `.nojekyll` are included.
-Social-card tags (`og:image` etc.) are injected automatically with the real URL during the Pages build.
+The build uses relative asset paths (`base: './'`) and has no client-side routing, so it works from a project
+site URL (`https://user.github.io/repo/`) or a custom domain. A `404.html` and `.nojekyll` are included.
+Social-card tags (`og:image`, etc.) are injected automatically with the real URL during the Pages build.
 
 ## License
 
