@@ -1,8 +1,8 @@
 {
-  "name": "haulover-run",
+  "name": "run-the-cut",
   "version": "1.0.0",
   "private": true,
-  "description": "Run the Cut — a pastel, physics-driven boating game set in Haulover Inlet, Miami. three.js WebGPU + TSL.",
+  "description": "Run the Cut — pastel, physics-driven boating games: run Haulover Inlet, fish for tuna off Montauk, dock at Nantucket. three.js WebGPU + TSL.",
   "type": "module",
   "license": "MIT",
   "engines": {
