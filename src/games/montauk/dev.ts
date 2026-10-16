@@ -131,11 +131,13 @@ export class FishBot {
     }
     this.hold(b, linesOut ? 6.1 : 7, c, dt);
 
-    // troll legs through the school: straight in, straight through, a wide turn, back again
+    // troll legs through the school: straight in, straight through, a wide turn, back again. A heavy boat
+    // answers the wheel slowly, so its small corrections have to be bigger ones.
+    const k = clamp((0.8 / b.spec.stats.handling) ** 2, 1, 3.5);
     this.legT += dt;
     if (this.leg === 'approach') {
       this.steerTo(b, desired, c, 1.1);
-      c.steer = clamp(c.steer, -0.1, 0.1);
+      c.steer = clamp(c.steer, -0.1 * k, 0.1 * k);
       if (dist < 45) {
         this.leg = 'pass';
         this.legT = 0;
@@ -147,7 +149,7 @@ export class FishBot {
         this.legT = 0;
       }
     } else {
-      c.steer = clamp(wrapAngle(desired - b.heading) > 0 ? 0.11 : -0.11, -0.12, 0.12);
+      c.steer = clamp(wrapAngle(desired - b.heading) > 0 ? 0.11 * k : -0.11 * k, -0.12 * k, 0.12 * k);
       if (Math.abs(wrapAngle(desired - b.heading)) < 0.3 || this.legT > 120) {
         this.leg = 'approach';
         this.legT = 0;

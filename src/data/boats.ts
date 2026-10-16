@@ -373,6 +373,82 @@ function makeCruiser(): BoatSpec {
   };
 }
 
+function makeCharter(): BoatSpec {
+  const o: HullOpts = {
+    length: 14.8,
+    beam: 4.7,
+    xAft: -7.4,
+    mass: 24000,
+    draft: 1.1,
+    planform: (s) => (s < 0.4 ? 1 - (0.4 - s) * 0.22 : (1 - ((s - 0.4) / 0.6) ** 1.7) ** 0.72),
+    lateral: [-0.86, -0.52, -0.18, 0.18, 0.52, 0.86],
+    nx: 11,
+    rocker: 0.62,
+    rockerStart: 0.45,
+    freeboard: 1.12,
+    sheerBow: 0.95,
+    sheerStern: -0.14,
+    cgY: 0.5,
+    trimBias: -0.1,
+    dragX: 773,
+    dragZ: 1700,
+    hump: { speed: 5.2, width: 2.8, gain: 0.3 },
+    cpS: 0.34,
+    weirScale: 1,
+    heaveZeta: 0.45,
+    flare: 0.95,
+  };
+  const h = buildHull(o);
+  HULL_OPTS.set('charter', o);
+  return {
+    id: 'charter',
+    name: 'Montauk Lady 46',
+    short: 'Lady',
+    tagline: 'Old-school inboard sportfisher',
+    blurb:
+      'A classic Montauk charter boat: twin diesels, a fighting chair and a tuna tower. Heavy, deep and steady in a seaway, slow to answer the wheel.',
+    length: o.length,
+    beam: o.beam,
+    mass: o.mass,
+    draft: o.draft,
+    cg: [h.cgX, o.cgY, 0],
+    inertia: inertia(o.length, o.beam, o.mass),
+    samples: h.samples,
+    weirs: h.weirs,
+    bumpers: h.bumpers,
+    engine: {
+      x: -6.6,
+      y: -1.4,
+      thrust: 62000,
+      zeroThrustSpeed: 20,
+      reverse: 0.45,
+      steerMax: 0.5,
+      steerRate: 0.6,
+      rudder: 1800,
+      sound: 'diesel',
+      washSteer: 0.5,
+    },
+    cockpit: { x0: -7.1, x1: -3.4, halfWidth: 1.85, soleY: 0.45, scupper: 0.05, scupperX: -7.1 },
+    wind: { front: 17, side: 44, cdFront: 0.9, cdSide: 1.1, ceX: h.cgX - o.trimBias + 1.2, ceY: 3.4 },
+    keel: 1.5,
+    flare: o.flare,
+    keelDepth: 1.25,
+    angDamp: [38000, 110000, 140000],
+    capacity: 3600,
+    waterMassScale: 2.4,
+    pump: 13,
+    planing: { speed: 9.5, fraction: 0.4, aoa: 0.05 },
+    hump: o.hump,
+    trim: { plane: 0.04, hump: 0.05, gain: 16000 },
+    topSpeed: 11,
+    camera: { distance: 31, height: 11, look: 8.5, helm: [0.4, 4.15, 0] },
+    stats: { speed: 0.4, handling: 0.32, stability: 0.92, dryness: 0.9, windage: 0.85, tide: 0.32 },
+    strength: 8.6,
+    skill: 3,
+    scoreMult: 1.1,
+  };
+}
+
 function makeSloop(): BoatSpec {
   const o: HullOpts = {
     length: 9.4,
@@ -531,6 +607,7 @@ export const BOATS: readonly BoatSpec[] = [
   makeConsole(),
   makeGoFast(),
   makeCruiser(),
+  makeCharter(),
   makeSloop(),
   makePontoon(),
 ];

@@ -133,8 +133,9 @@ export function loftShell(h: HullShape): BufferGeometry {
       const b = a + 1;
       const c = a + row;
       const d = c + 1;
-      // outward-facing triangles
-      idx.push(a, b, c, b, d, c);
+      // outward-facing triangles: counter-clockwise seen from outside the hull, so the livery (front
+      // faces) paints the OUTSIDE and the plain liner tint (back faces) the inside
+      idx.push(a, c, b, b, c, d);
     }
   }
   const g = new BufferGeometry();
@@ -173,6 +174,8 @@ export function loftTransom(h: HullShape): BufferGeometry {
   }
   const idx: number[] = [];
   for (let i = 1; i < pts.length; i++) idx.push(0, i, i + 1);
+  // close the fan across the top edge, or the upper wedge of the transom is a hole you can see the sea through
+  idx.push(0, pts.length, 1);
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
   g.setAttribute('normal', new BufferAttribute(new Float32Array(nor), 3));
@@ -228,7 +231,8 @@ export function hullStrip(h: HullShape, o: StripOpts): BufferGeometry {
       const b = a + 1;
       const c = a + row;
       const d = c + 1;
-      idx.push(a, c, b, b, c, d);
+      // counter-clockwise seen from above, so the surface faces UP (it is lit and drawn from above)
+      idx.push(a, b, c, b, d, c);
     }
   }
   const g = new BufferGeometry();

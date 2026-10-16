@@ -57,6 +57,8 @@ export interface WakeBoat {
   shadowV: number;
   /** 0..1 how strongly the sun casts a shadow. */
   sun: number;
+  /** The hull's planform, so the sea can be cut out of it (absent for hulls that are open to the water). */
+  hull?: { halfLen: number; halfBeam: number; shift: number };
 }
 
 const MAX_STAMPS = 10;

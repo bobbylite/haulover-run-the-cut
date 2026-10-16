@@ -77,7 +77,7 @@ export interface Cockpit {
 }
 
 export interface BoatSpec {
-  id: 'console' | 'gofast' | 'cruiser' | 'sloop' | 'pontoon';
+  id: 'console' | 'gofast' | 'cruiser' | 'charter' | 'sloop' | 'pontoon';
   name: string;
   short: string;
   tagline: string;

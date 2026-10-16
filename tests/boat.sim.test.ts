@@ -8,7 +8,14 @@ const DT = 1 / 60;
 const RAD = 180 / Math.PI;
 
 /** Intended flat-water, motor-only top speeds (m/s). */
-const TOP: Record<string, number> = { console: 22, gofast: 32, cruiser: 13.5, sloop: 3.9, pontoon: 8.6 };
+const TOP: Record<string, number> = {
+  console: 22,
+  gofast: 32,
+  cruiser: 13.5,
+  charter: 11,
+  sloop: 3.9,
+  pontoon: 8.6,
+};
 
 function settle(boat: Boat, env: ReturnType<typeof calmEnv>, seconds: number): void {
   for (let i = 0; i < seconds / DT; i++) {

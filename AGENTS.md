@@ -88,6 +88,15 @@ A mode never touches the renderer's internals; it uses `host.*` (`toast`, `cam`,
 - Headless run-to-run variation: real animation frames advance the sea clock before a script takes over. For
   reproducible runs use the agent API (`?agent&seed=N`). Always compare against a clean-checkout baseline before blaming
   your change (`git worktree add /tmp/base HEAD`, symlink `node_modules`, own port).
+- Boat hulls are lofted meshes, so **triangle winding is art direction**: `loftShell` faces outward (livery on the outside,
+  plain liner inside), `hullStrip` faces up (decks and soles are only drawn from above), and `loftTransom` must close its
+  fan or the sea shows through the stern. Open-deck hulls also cut the sea out of themselves (`HullCut` in
+  `render/water.ts`, fed from `Game.hullCut`); the pontoon opts out because you must see the water between its tubes.
+  A cockpit that "looks full of water" is a winding or cut-out bug, not a colour problem.
+- Adding a boat touches: `BoatSpec['id']` (`sim/boatSpec.ts`) and `GameConfig['boat']` (`game/state.ts`), a `make*()` +
+  `HULL_OPTS` entry in `data/boats.ts`, a model in `render/boats/models/` registered in `boatModel.ts` (builder + paints),
+  `boatIcon` in `ui/icons.ts`, an `ENGINES` profile in `audio/audio.ts`, and the `TOP` / tune / slow-boat tables in
+  `tests/`. Set `dragX` from `TUNE=1 npx vitest run tests/tune.test.ts` (it prints the drag that gives the target top speed).
 - macOS: BSD `sed` needs `sed -i ''`; there is no `timeout`. Prefer the edit tools or a small Python script.
 - `GameConfig.route` is still Haulover's; Docking/Traffic/ResultState are Haulover-shaped. Generalise when the next game
   needs it (see the roadmap's carried-forward list), not speculatively.

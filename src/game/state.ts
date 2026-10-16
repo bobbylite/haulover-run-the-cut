@@ -7,7 +7,7 @@ import type { DockStatus } from './docking';
 export type Phase = 'loading' | 'menu' | 'countdown' | 'playing' | 'paused' | 'finished' | 'failed';
 
 export interface GameConfig {
-  boat: 'console' | 'gofast' | 'cruiser' | 'sloop' | 'pontoon';
+  boat: 'console' | 'gofast' | 'cruiser' | 'charter' | 'sloop' | 'pontoon';
   weather: string;
   tide: Tide;
   difficulty: string;

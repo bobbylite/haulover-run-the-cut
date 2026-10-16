@@ -58,8 +58,22 @@ import type { WeatherState } from './weatherState';
 
 type N = any;
 
+/** Hulls whose interiors the sea is cut out of (the player and the nearest traffic). */
+const MAX_HULLS = 6;
+
 // Nominal wavelengths of the short components (for distance fading), matched to sim/waves.ts
 const FADE_LEN: number[] = [0, 0, 0, 24, 16, 10.5, 7, 4.6, 16, 12, 9.2, 7];
+
+/** Where a hull is, for cutting the sea out of it. */
+export interface HullCut {
+  x: number;
+  z: number;
+  heading: number;
+  halfLen: number;
+  halfBeam: number;
+  /** Distance from `x, z` (the centre of gravity) forward to the middle of the hull. */
+  shift: number;
+}
 
 export interface WaterTextures {
   geo: Texture;
@@ -147,6 +161,9 @@ export class Water {
   readonly uWakeSize = uniform(256);
   /** Dev: 1 paints the raw wake map (rgb) over the water. */
   readonly uDebug = uniform(0);
+  /** Hulls the sea must not paint over: (x, z, cos heading, sin heading) and (half length, half beam, shift). */
+  private readonly uHullA: ReturnType<typeof uniform>[] = [];
+  private readonly uHullB: ReturnType<typeof uniform>[] = [];
   /** Replaced by the wake simulation once it exists. */
   private wakeNode!: ReturnType<typeof texture>;
   private wakeTexture: Texture = blackTexture();
@@ -163,6 +180,10 @@ export class Water {
     for (let i = 0; i < NUM_WAVES; i++) {
       this.waveA.push(uniform(new Vector4()));
       this.waveB.push(uniform(new Vector4()));
+    }
+    for (let i = 0; i < MAX_HULLS; i++) {
+      this.uHullA.push(uniform(new Vector4()));
+      this.uHullB.push(uniform(new Vector4()));
     }
     this.material = this.buildMaterial();
     this.mesh = new Mesh(makePolarGeometry(), this.material);
@@ -537,7 +558,26 @@ export class Water {
       col.mulAssign(float(1).sub(wake.b.mul(0.38)));
 
       col.assign(mix(col, vec3(wake.r, wake.g, wake.b).mul(1.0), this.uDebug.mul(inWake.max(0.0).max(0.25))));
-      return vec4(col, 1.0);
+      // a hull displaces the sea: nothing is painted inside it, so the wave that rises above the cockpit sole
+      // never washes white foam over a dry deck. The cut follows the planform (square stern, pointed bow).
+      let hull: N = float(0);
+      for (let i = 0; i < MAX_HULLS; i++) {
+        const A: N = this.uHullA[i];
+        const B: N = this.uHullB[i];
+        const d: N = xz.sub(vec2(A.x, A.y));
+        const u: N = d.x.mul(A.z).add(d.y.mul(A.w)).sub(B.z);
+        const v: N = d.y.mul(A.z).sub(d.x.mul(A.w));
+        const un: N = u.div(B.x.max(0.01));
+        const bow: N = clamp(un, 0.0, 1.0);
+        const wid: N = float(1).sub(bow.pow(2.2)).max(0.0).pow(0.55);
+        const lat: N = v.abs().div(B.y.mul(wid).max(0.02));
+        const m: N = float(1)
+          .sub(smoothstep(0.78, 1.0, lat))
+          .mul(float(1).sub(smoothstep(0.9, 1.0, un.abs())))
+          .mul(step(0.01, B.x));
+        hull = max(hull, m);
+      }
+      return vec4(col, float(1).sub(hull));
     })();
 
     return mat;
@@ -550,6 +590,24 @@ export class Water {
   }
 
   // ---------------------------------------------------------------------------------------------
+
+  /** Cut the sea out of these hulls this frame (the first few, nearest the camera). */
+  setHulls(hulls: readonly HullCut[], camX: number, camZ: number): void {
+    const list = [...hulls].sort(
+      (a, b) => (a.x - camX) ** 2 + (a.z - camZ) ** 2 - ((b.x - camX) ** 2 + (b.z - camZ) ** 2),
+    );
+    for (let i = 0; i < MAX_HULLS; i++) {
+      const h = list[i];
+      const A = this.uHullA[i]?.value as Vector4;
+      const B = this.uHullB[i]?.value as Vector4;
+      if (!h) {
+        B.set(0, 0, 0, 0);
+        continue;
+      }
+      A.set(h.x, h.z, Math.cos(h.heading), Math.sin(h.heading));
+      B.set(h.halfLen, h.halfBeam, h.shift, 0);
+    }
+  }
 
   /** Upload per-frame state. */
   update(camera: PerspectiveCamera, env: Environment, weather: WeatherState): void {

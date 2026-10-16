@@ -5,6 +5,7 @@ import { clamp } from '../../core/math';
 import type { Boat } from '../../sim/boat';
 import type { BoatSpec } from '../../sim/boatSpec';
 import { type ModelParts, makeCockpitWater } from './common';
+import { buildCharter, CHARTER_PAINT } from './models/charter';
 import { buildConsole, CONSOLE_PAINT } from './models/console';
 import { buildCruiser, CRUISER_PAINT } from './models/cruiser';
 import { buildGoFast, GOFAST_PAINT } from './models/gofast';
@@ -15,6 +16,7 @@ const BUILDERS: Record<BoatSpec['id'], (s: BoatSpec, paint?: any) => ModelParts>
   console: buildConsole,
   gofast: buildGoFast,
   cruiser: buildCruiser,
+  charter: buildCharter,
   sloop: buildSloop,
   pontoon: buildPontoon,
 };
@@ -65,6 +67,25 @@ const PAINTS: Partial<Record<BoatSpec['id'], object[]>> = {
       bottom: '#34569a',
       bimini: '#ffe7b0',
       cushion: '#fff0cc',
+    },
+  ],
+  charter: [
+    CHARTER_PAINT,
+    {
+      top: '#f3fbff',
+      stripe: '#8fe0d6',
+      boot: '#ff8f7a',
+      bottom: '#2b7f96',
+      cushion: '#d4f7f1',
+      canvas: '#b8f0e8',
+    },
+    {
+      top: '#fff6e8',
+      stripe: '#ffb497',
+      boot: '#6e8bff',
+      bottom: '#4a5fb8',
+      cushion: '#ffe0cc',
+      canvas: '#ffd9b8',
     },
   ],
 };

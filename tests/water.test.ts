@@ -164,7 +164,7 @@ describe('boats stay dry where the water is calm', () => {
   it('on a golden-hour run through the Cut every hull finishes dry', () => {
     const diff = difficultyById('weekender');
     for (const spec of BOATS) {
-      if (spec.id === 'cruiser' || spec.id === 'sloop') continue; // too slow to cover the course in a unit test
+      if (spec.id === 'cruiser' || spec.id === 'charter' || spec.id === 'sloop') continue; // too slow to cover the course in a unit test
       const env = new Environment(HAULOVER);
       env.setConditions(weatherById('golden'), 'ebb', diff, true);
       const benv = makeBoatEnv(env);
