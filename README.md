@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/hero-golden.jpg" alt="A boat running the Cut at golden hour" width="100%" />
+  <img src="docs/montauk-trolling.png" alt="A boat running the Cut at golden hour" width="100%" />
 </p>
 
 A title screen picks the game; each has its own menu, rules, scoring and best scores (`?game=haulover|montauk`).
