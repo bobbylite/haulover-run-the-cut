@@ -37,5 +37,11 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'node',
+    // Most of this suite is deterministic physics and rules run through whole scripted days and dockings, so a test
+    // is CPU-bound, never waiting on something that might hang. Vitest's 5 s default only passes on a fast, idle
+    // machine: a loaded 4-vCPU CI runner took 7.6 s over a Montauk day that takes 2.3 s here, and that broke the
+    // Pages deploy. Slow tests may still set their own (longer) timeout.
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
   },
 });

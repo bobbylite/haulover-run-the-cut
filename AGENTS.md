@@ -115,6 +115,10 @@ A mode never touches the renderer's internals; it uses `host.*` (`toast`, `cam`,
 - **Level clocks come from the pilot:** Nantucket's `time` values are ~1.5x what the test pilot needs at the middle
   difficulty. When you change a hull, a berth or the tide, re-run `scripts/dock-run.mjs --all` (or the dock tests) and
   re-derive them rather than guessing.
+- **CI is slower than your machine:** the Pages deploy runs `npm test` on a 4-vCPU runner and a loaded one took 7.6 s over a
+  Montauk day that takes 2.3 s locally, so Vitest's 5 s default timed it out and blocked the deploy. `vite.config.ts` sets
+  `testTimeout` to 60 s; a test that needs more than that on your machine should set its own. To check a change against the
+  CI conditions run the suite on the `.nvmrc` Node (24) with the cores busy (e.g. a few `yes > /dev/null &`), not just idle.
 - Shared files everyone edits (`style.css`, `registry.ts`, `state.ts`, `game.ts`, `weather.ts`): append and keep diffs
   small so parallel branches merge.
 
