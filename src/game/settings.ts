@@ -72,7 +72,8 @@ export function rememberConfig(s: Settings, game: GameId, c: GameConfig): void {
 
 /** Best-score key. Haulover keeps its original key shape so existing bests survive the multi-game split. */
 export const bestKey = (game: GameId, c: GameConfig): string => {
-  const k = `${c.boat}|${c.weather}|${c.tide}|${c.difficulty}|${c.route}`;
+  // a berth-based game keys its bests by challenge, not by route
+  const k = `${c.boat}|${c.weather}|${c.tide}|${c.difficulty}|${game === 'nantucket' ? c.level : c.route}`;
   return game === 'haulover' ? k : `${game}:${k}`;
 };
 
@@ -84,6 +85,27 @@ export function loadBest(game: GameId, c: GameConfig): number {
 export function saveBest(game: GameId, c: GameConfig, score: number): void {
   const all = read<Record<string, number>>(BEST, {});
   all[bestKey(game, c)] = score;
+  try {
+    localStorage.setItem(BEST, JSON.stringify(all));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Stars earned on each challenge of a berth-based game (the best over every condition tried). */
+export function loadStars(game: GameId): Record<string, number> {
+  const all = read<Record<string, number>>(BEST, {});
+  const out: Record<string, number> = {};
+  const prefix = `${game}:stars:`;
+  for (const [k, v] of Object.entries(all)) if (k.startsWith(prefix)) out[k.slice(prefix.length)] = v;
+  return out;
+}
+
+export function saveStars(game: GameId, level: string, stars: number): void {
+  const all = read<Record<string, number>>(BEST, {});
+  const key = `${game}:stars:${level}`;
+  if ((all[key] ?? 0) >= stars) return;
+  all[key] = stars;
   try {
     localStorage.setItem(BEST, JSON.stringify(all));
   } catch {

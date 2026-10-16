@@ -35,6 +35,7 @@ describe.skipIf(!process.env.TUNE)('tune', () => {
       console: 22,
       gofast: 32,
       cruiser: 13.5,
+      charter: 11,
       sloop: 3.9,
       pontoon: 8.6,
     };

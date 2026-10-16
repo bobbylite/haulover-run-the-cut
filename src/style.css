@@ -546,7 +546,7 @@
 
   .boats {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 6px;
     > button {
       display: grid;
@@ -2499,6 +2499,288 @@
   @media (max-width: 900px) {
     .hud-fmmap,
     .fm-sonar {
+      display: none;
+    }
+  }
+}
+
+/* ───────────────────────────── Nantucket: the berthing HUD ───────────────────────────── */
+@layer hud {
+  /* a harbour has no bilge or sea-state to watch */
+  #ui[data-game="nantucket"] .hud-bottom-left,
+  #ui[data-game="nantucket"] .hud-wave {
+    display: none;
+  }
+
+  .nt-levels {
+    display: grid;
+    gap: 8px;
+  }
+  .nt-tier {
+    display: grid;
+    grid-template-columns: 62px 1fr;
+    gap: 6px;
+    align-items: center;
+    .th .label {
+      font-size: 0.6rem;
+      line-height: 1.15;
+      display: block;
+    }
+    &.locked {
+      opacity: 0.5;
+    }
+  }
+  .nt-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+    > button {
+      display: grid;
+      justify-items: center;
+      align-content: start;
+      gap: 0;
+      padding: 4px 2px 3px;
+      border-radius: var(--r-md);
+      background: oklch(1 0 0 / 0.28);
+      border: 1.5px solid oklch(1 0 0 / 0.45);
+      transition:
+        transform 0.3s var(--ease-spring),
+        background 0.25s,
+        box-shadow 0.25s;
+      svg {
+        width: 100%;
+        height: 22px;
+        color: var(--ink-soft);
+        transition:
+          color 0.25s,
+          transform 0.4s var(--ease-spring);
+      }
+      b {
+        font-size: 0.62rem;
+        line-height: 1.1;
+        text-align: center;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .st {
+        font-size: 0.64rem;
+        letter-spacing: 0.12em;
+        color: var(--ink-soft);
+        &.got {
+          color: oklch(0.74 0.16 70);
+        }
+      }
+      &:not([aria-disabled="true"]):hover {
+        transform: translateY(-2px);
+        background: oklch(1 0 0 / 0.45);
+      }
+      &[aria-disabled="true"] {
+        cursor: default;
+      }
+      &[aria-pressed="true"] {
+        background: var(--glass-strong);
+        box-shadow:
+          0 10px 24px -10px oklch(0.45 0.15 300 / 0.6),
+          inset 0 1px 0 #fff;
+        border-color: white;
+        svg {
+          color: var(--coral-deep);
+          transform: translateY(-2px) scale(1.08);
+        }
+      }
+    }
+  }
+  .nt-card {
+    display: grid;
+    gap: 6px;
+    p {
+      margin: 0;
+      font-size: 0.85rem;
+      line-height: 1.38;
+      color: var(--ink-soft);
+    }
+    .nt-line {
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+      flex-wrap: wrap;
+      b {
+        font-size: 1.05rem;
+      }
+      .chip {
+        font-family: var(--font-label);
+        font-weight: 800;
+        font-size: 0.66rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        padding: 2px 8px;
+        border-radius: 99px;
+        background: var(--grad-sea);
+        color: white;
+      }
+      .nt-time {
+        margin-left: auto;
+        font-size: 0.78rem;
+        color: var(--ink-soft);
+      }
+      &.small {
+        font-size: 0.74rem;
+        font-weight: 600;
+        color: var(--ink-soft);
+        gap: 14px;
+      }
+    }
+  }
+  .nt-root .boat-card p {
+    display: none;
+  }
+
+  .nt-obj .time.low {
+    color: var(--coral-deep);
+    animation: pulse 0.7s ease-in-out infinite alternate;
+  }
+  .nt-dock {
+    top: calc(clamp(12px, 2vh, 24px) + 78px);
+    .head .label {
+      max-width: 70%;
+    }
+  }
+
+  .nt-ctl {
+    position: absolute;
+    left: clamp(12px, 2vw, 28px);
+    bottom: clamp(12px, 2vh, 24px);
+    width: min(330px, 46vw);
+    padding: 10px 14px 12px;
+    border-radius: var(--r-md);
+    display: grid;
+    gap: 10px;
+    &[hidden] {
+      display: none;
+    }
+    .thr[hidden],
+    .tugs[hidden] {
+      display: none;
+    }
+    .trow {
+      display: grid;
+      grid-template-columns: 44px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      & + .trow {
+        margin-top: 6px;
+      }
+    }
+    .tbar {
+      position: relative;
+      height: 12px;
+      border-radius: 99px;
+      background: oklch(0.31 0.075 285 / 0.14);
+      --v: 0;
+      &::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: -2px;
+        bottom: -2px;
+        width: 2px;
+        background: oklch(0.31 0.075 285 / 0.4);
+      }
+      i {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: calc(50% + min(var(--v), 0) * 50%);
+        width: calc(abs(var(--v)) * 50%);
+        border-radius: 99px;
+        background: linear-gradient(90deg, var(--sky), var(--lavender));
+      }
+    }
+    .keys kbd {
+      font-family: var(--font-label);
+      font-weight: 700;
+      padding: 0 6px;
+      margin-left: 3px;
+      border-radius: 6px;
+      background: oklch(1 0 0 / 0.6);
+      border: 1px solid #fff;
+      font-size: 0.7rem;
+    }
+    .tugs {
+      display: grid;
+      gap: 6px;
+      .label b {
+        color: var(--coral-deep);
+      }
+    }
+    .tbtns {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
+      pointer-events: auto;
+      button {
+        display: grid;
+        justify-items: center;
+        padding: 4px 2px 3px;
+        border-radius: 10px;
+        font-weight: 800;
+        font-size: 0.95rem;
+        line-height: 1;
+        background: oklch(1 0 0 / 0.5);
+        border: 1.5px solid #fff;
+        color: var(--ink);
+        small {
+          font-size: 0.58rem;
+          font-weight: 600;
+          color: var(--ink-soft);
+        }
+        &.on {
+          background: linear-gradient(120deg, var(--mint), var(--aqua));
+          box-shadow: 0 0 14px -2px var(--mint);
+        }
+        &[disabled] {
+          opacity: 0.4;
+        }
+      }
+    }
+  }
+}
+
+@layer hud {
+  .nt-map {
+    position: absolute;
+    right: clamp(12px, 2vw, 28px);
+    top: 74px;
+    padding: 8px 10px 10px;
+    border-radius: var(--r-md);
+    display: grid;
+    gap: 6px;
+    .head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .hint {
+      font-size: 0.68rem;
+      color: var(--ink-soft);
+    }
+    canvas {
+      width: min(400px, 38vw);
+      height: auto;
+      border-radius: 12px;
+      display: block;
+    }
+  }
+  /* in a run the chart gets out of the way */
+  [data-phase="countdown"] .nt-map,
+  [data-phase="playing"] .nt-map,
+  [data-phase="paused"] .nt-map,
+  [data-phase="finished"] .nt-map,
+  [data-phase="failed"] .nt-map {
+    display: none;
+  }
+  @media (max-width: 1100px), (max-height: 600px) {
+    .nt-map {
       display: none;
     }
   }

@@ -8,6 +8,7 @@
 
 import type { DataTexture, Group } from 'three/webgpu';
 import type { Quality } from '../render/renderWorld';
+import type { BerthMarker } from '../render/world/berthMarker';
 import type { DockMarker } from '../render/world/dockMarker';
 import type { Environment } from '../sim/environment';
 import type { GeoGrid } from '../sim/geoGrid';
@@ -60,15 +61,50 @@ export interface Piling {
   r: number;
 }
 
-/** A boat tied up in a slip. */
+/** A boat tied up in a slip or lying to a mooring. */
 export interface Moored {
   x: number;
   z: number;
   yaw: number;
-  kind: 'console' | 'gofast' | 'cruiser';
+  kind: 'console' | 'gofast' | 'cruiser' | 'charter' | 'sloop' | 'pontoon';
   length: number;
   beam: number;
   pal: number;
+}
+
+/**
+ * Something to park at (Nantucket). The geometry of a berth is vessel-independent; `berthTarget`
+ * (game/berthing.ts) turns it into the pose a particular vessel has to finish in.
+ */
+export type BerthKind = 'slip' | 'alongside' | 'mooring';
+
+export interface Berth {
+  id: string;
+  label: string;
+  kind: BerthKind;
+  /**
+   * Slip: the middle of the closed end. Alongside: the point on the quay face that the middle of the vessel
+   * should lie against. Mooring: the ball.
+   */
+  x: number;
+  z: number;
+  /**
+   * Slip: the heading that runs from the mouth towards the closed end. Alongside: the heading of the outward
+   * normal (from the quay into the water). Mooring: unused.
+   */
+  dir: number;
+  /** Slip: clear width between the fingers (m). Alongside: unused. Mooring: the radius the bow must reach (m). */
+  width: number;
+  /** Slip: its depth from mouth to head (m). Alongside: the usable length of the face (m). */
+  length: number;
+  /** Which way round a vessel may finish (alongside: along the quay either way, slips: bow-in or stern-in). */
+  ends: 'either' | 'bow' | 'stern';
+  /** Alongside: the heading of the run along the quay that the approach road arrives on. */
+  travel?: number;
+  /** Half-width of the world window the docking radar shows, centred on the berth (m). */
+  radar: number;
+  /** From open water to the berth's mouth: a hint for the player and the road for the test pilot. */
+  approach: readonly (readonly [number, number])[];
 }
 
 /**
@@ -128,6 +164,8 @@ export interface LocationProps {
   wildlife: { update(dt: number, inp: WildlifeInput): void };
   /** The glowing target berth (locations with a harbour). */
   dockMarker?: DockMarker;
+  /** The glowing target berth for berth-based games (Nantucket). */
+  berthMarker?: BerthMarker;
 }
 
 export interface Location {
@@ -138,6 +176,8 @@ export interface Location {
   flowCell: number;
   fields: SeaFields;
   harbor?: Harbor;
+  /** The berths on offer (Nantucket); Haulover's single slip lives in `harbor`. */
+  berths?: readonly Berth[];
   map: MapFeatures;
   /** Half-width of the navigable corridor at x (hazard placement, hints). */
   corridorHalf(x: number): number;

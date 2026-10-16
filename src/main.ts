@@ -41,6 +41,8 @@ async function main() {
         (q.get('skill') as 'captain') ?? 'captain',
         Number(q.get('cruise') ?? 0.55),
       );
+    if (game.mode.id === 'nantucket')
+      (await import('./games/nantucket/dev')).attachPilot(game, Number(q.get('cruise') ?? 0.7));
     if (q.has('go')) game.startRun();
   }
   // `?agent` hands the sim to an AI agent: observations and actions as JSON, stepped deterministically

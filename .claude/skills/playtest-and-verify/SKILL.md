@@ -41,6 +41,8 @@ A bare URL shows the title screen. **Kill your servers when done** (`pkill -f "v
 ```bash
 node scripts/sim-run.mjs --url http://127.0.0.1:5392/ --boat console --weather breeze --difficulty weekender --route full --cruise 0.55
 node scripts/fish-run.mjs   --seed 1,2,3 --difficulty weekender --skill captain     # whole Montauk days, real boat + sea
+node scripts/dock-run.mjs   --all                                                   # every Nantucket level, harbour pilot at the helm
+node scripts/dock-run.mjs   --level liner-east --weather n-fog --difficulty captain
 node scripts/fish-fights.mjs --difficulty dockside,weekender,captain,legend --n 10 --x 1900 --z 400   # land rates per tier
 ```
 They run the real page with a scripted pilot (`?auto`; Montauk `skill=captain|idle|keepGoing|powerAway`) and fast-forward

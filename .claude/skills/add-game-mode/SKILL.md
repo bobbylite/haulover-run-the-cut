@@ -1,13 +1,14 @@
 ---
 name: add-game-mode
-description: How to add a new game (a Location plus a GameMode) to Run the Cut, or extend Haulover/Montauk/Nantucket - the Location/GameMode seam, the registry, per-game saves, menu and HUD hooks, the pure-sim-plus-bot testing pattern, and the docs to update. Use when starting Nantucket (M3), adding a new place, or adding a mechanic that needs its own rules, UI and tests.
+description: How to add a new game (a Location plus a GameMode) to Run the Cut, or extend Haulover/Montauk/Nantucket - the Location/GameMode seam, the registry, per-game saves, menu and HUD hooks, the pure-sim-plus-bot testing pattern, and the docs to update. Use when adding a new place, extending Nantucket (more berths, vessels, hazards), or adding a mechanic that needs its own rules, UI and tests.
 ---
 
 # Add a game (or a mechanic) the way the first two were built
 
 The engine hosts one game per page load. A **Location** is *data* (the sea fields, terrain, scenery); a **GameMode**
 is *rules* (what you do there, scoring, HUD). `src/game/game.ts` (`Game`) is the engine host and knows neither.
-Read `docs/ROADMAP.md` first: it holds the plan (Nantucket M3 is next), the decision log and the session log.
+Read `docs/ROADMAP.md` first: it holds the plan, the decision log and the session log. All three games exist now:
+Haulover (gates and a slip), Montauk (fish) and Nantucket (berths, ships, tugs; **the model for a berth- or level-based game**).
 
 ## The pieces
 
@@ -63,5 +64,8 @@ tests/                   <topic>.*.test.ts for the sims, <place>.location.test.t
 - **Hot shared files** (`style.css`, `registry.ts`, `state.ts`, `game.ts`): append, do not reformat; keep edits small.
 - **Heaviest hazards for a first build**: the camera (a fish astern is behind a chase camera: add a framing camera),
   grazing-angle decals (add height), HUD at 1280x720 and phone landscape, and bots that cheat (label them).
-- Do not hard-code Haulover: `GameConfig.route` is still Haulover's; the carried-forward items for Nantucket
-  (berth generalisation, big-vessel physics) are listed under M2/M3 in the roadmap.
+- Do not hard-code Haulover: `GameConfig.route` is Haulover's, `GameConfig.level` is a berth-based game's (Nantucket
+  keys its saves and stars by it; the level also fixes the vessel). A place with berths exposes `Location.berths`.
+- **Berth games** (Nantucket): put the geometry in the location (`Berth`: slip / alongside / mooring), the finish rules in
+  `game/berthing.ts` (pure, `BerthSession`), the scoring in `game/berthScore.ts`, a scripted pilot in `game/harborPilot.ts`
+  and prove every level with it in `tests/nantucket.dock.*.test.ts`. A level you cannot park is a bug the build must catch.

@@ -3,12 +3,12 @@
 // only one mode's menu exists per page.
 
 import { KNOTS } from '../core/math';
-import { BOATS } from '../data/boats';
-import { DIFFICULTIES, difficultyById } from '../data/difficulty';
+import { ALL_BOATS, BOATS } from '../data/boats';
+import { DIFFICULTIES, type Difficulty, difficultyById } from '../data/difficulty';
 import { weatherById, weatherFor } from '../data/weather';
 import type { ModeUiHost } from '../game/mode';
 import type { GameConfig } from '../game/state';
-import { SKILL_LABELS } from '../sim/boatSpec';
+import { type BoatSpec, SKILL_LABELS } from '../sim/boatSpec';
 import { cardinal, ft } from './format';
 import { boatIcon, weatherIcon } from './icons';
 
@@ -76,6 +76,10 @@ type SegItem = [string, string, string?];
 export interface SharedMenuOptions {
   tides?: SegItem[];
   difficulties?: SegItem[];
+  /** The vessels the picker offers (default: the small boats). */
+  vessels?: readonly BoatSpec[];
+  /** The game's own difficulty table, where it has one. */
+  diffOf?: (id: string) => Difficulty;
 }
 
 const TIDES: SegItem[] = [
@@ -97,10 +101,12 @@ export class SharedMenu {
     const g = host.game;
     const boats = host.q('boats');
     if (boats) {
-      boats.innerHTML = BOATS.map(
-        (b) =>
-          `<button data-id="${b.id}" role="radio" aria-pressed="false" title="${b.name}">${boatIcon(b.id)}<span>${b.short}</span></button>`,
-      ).join('');
+      boats.innerHTML = (this.opts.vessels ?? BOATS)
+        .map(
+          (b) =>
+            `<button data-id="${b.id}" role="radio" aria-pressed="false" title="${b.name}">${boatIcon(b.id)}<span>${b.short}</span></button>`,
+        )
+        .join('');
       boats.addEventListener('click', (e) => {
         const b = (e.target as HTMLElement).closest<HTMLElement>('button[data-id]');
         if (!b) return;
@@ -136,8 +142,9 @@ export class SharedMenu {
 
   cycleVessel(d: number): void {
     const g = this.host.game;
-    const i = BOATS.findIndex((b) => b.id === g.cfg.boat);
-    const n = BOATS[(i + d + BOATS.length) % BOATS.length];
+    const list = this.opts.vessels ?? BOATS;
+    const i = list.findIndex((b) => b.id === g.cfg.boat);
+    const n = list[(i + d + list.length) % list.length];
     if (!n) return;
     g.setConfig({ boat: n.id });
     this.onChange();
@@ -152,9 +159,9 @@ export class SharedMenu {
     press(host.q('tide'), 'v', c.tide);
     press(host.q('diff'), 'v', c.difficulty);
 
-    const spec = BOATS.find((b) => b.id === c.boat);
+    const spec = ALL_BOATS.find((b) => b.id === c.boat);
     if (!spec) return;
-    const diff = difficultyById(c.difficulty);
+    const diff = (this.opts.diffOf ?? difficultyById)(c.difficulty);
     const w = weatherById(c.weather);
     const bar = (v: number, fill: string) =>
       `<div class="bar" style="--v:${v}; --fill:${fill}"><i></i></div>`;
@@ -179,7 +186,7 @@ export class SharedMenu {
         ${stat('Windage', spec.stats.windage, 'linear-gradient(90deg,var(--peach),var(--coral))')}
         ${stat('Tide', spec.stats.tide, 'linear-gradient(90deg,var(--sky),var(--aqua))')}
       </div>
-      <div class="specs"><span><b>${spec.length.toFixed(1)} m</b> / ${ft(spec.length)}</span><span>top <b>${Math.round(spec.topSpeed * KNOTS)} kn</b></span><span>draft <b>${spec.keelDepth.toFixed(1)} m</b></span>${spec.sail ? '<span><b>sail + motor</b></span>' : ''}</div>`,
+      <div class="specs"><span><b>${spec.length.toFixed(1)} m</b> / ${ft(spec.length)}</span><span>top <b>${Math.round(spec.topSpeed * KNOTS)} kn</b></span><span>draft <b>${spec.keelDepth.toFixed(1)} m</b></span>${spec.sail ? '<span><b>sail + motor</b></span>' : ''}${spec.thrusters ? '<span><b>thrusters</b></span>' : ''}</div>`,
     );
     set('wxBlurb', w.blurb, true);
     set('wxDanger', `${'●'.repeat(w.danger)}${'○'.repeat(5 - w.danger)}`, true);

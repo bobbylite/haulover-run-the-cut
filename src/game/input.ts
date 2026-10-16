@@ -8,6 +8,9 @@ export interface Controls {
   steer: number;
   sheet: number;
   pump: boolean;
+  /** Bow / stern tunnel thrusters, -1 (to port) .. +1 (to starboard). */
+  bow?: number;
+  stern?: number;
 }
 
 export type Action =
@@ -58,6 +61,12 @@ export class Input {
   touchBino = false;
   touchFishPump = false;
   touchSheet = 0;
+  /** On-screen thruster buttons (ships): -1, 0 or +1. */
+  touchBow = 0;
+  touchStern = 0;
+  /** Thruster demand this frame (keys Q/E bow, Z/V stern, pad d-pad bow, bumpers stern). */
+  bow = 0;
+  stern = 0;
   /** Fishing: hold V for binoculars, hold Z (or pad B) to pump the rod. Only live while input is enabled. */
   binoculars = false;
   fishPump = false;
@@ -198,6 +207,22 @@ export class Input {
         if (pad.buttons[5]?.pressed) this.sheet = clamp(this.sheet + this.sheetRate * dt, 0, 1);
       }
       if (this.touchSheet) this.sheet = clamp(this.sheet + this.touchSheet * this.sheetRate * dt, 0, 1);
+      this.bow = clamp(
+        (this.down('KeyE') ? 1 : 0) -
+          (this.down('KeyQ') ? 1 : 0) +
+          this.touchBow +
+          (pad ? (pad.buttons[15]?.pressed ? 1 : 0) - (pad.buttons[14]?.pressed ? 1 : 0) : 0),
+        -1,
+        1,
+      );
+      this.stern = clamp(
+        (this.down('KeyV') ? 1 : 0) -
+          (this.down('KeyZ') ? 1 : 0) +
+          this.touchStern +
+          (pad ? (pad.buttons[5]?.pressed ? 1 : 0) - (pad.buttons[4]?.pressed ? 1 : 0) : 0),
+        -1,
+        1,
+      );
       this.binoculars = this.down('KeyV') || this.touchBino;
       this.fishPump = this.down('KeyZ') || !!pad?.buttons[1]?.pressed || this.touchFishPump;
       this.pump =
@@ -211,6 +236,7 @@ export class Input {
       this.touchFishPump = false;
       this.touchSheet = 0;
       this.touchSteer = null;
+      this.bow = this.stern = 0;
     }
 
     // camera orbit relaxes back behind the boat when not dragging
@@ -222,7 +248,14 @@ export class Input {
   }
 
   controls(): Controls {
-    return { throttle: this.throttle, steer: this.steer, sheet: this.sheet, pump: this.pump };
+    return {
+      throttle: this.throttle,
+      steer: this.steer,
+      sheet: this.sheet,
+      pump: this.pump,
+      bow: this.bow,
+      stern: this.stern,
+    };
   }
 
   reset(): void {

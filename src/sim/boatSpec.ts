@@ -52,6 +52,19 @@ export interface EngineSpec {
   sound: 'outboard' | 'v8' | 'diesel' | 'sail';
   /** Cut-off steering authority at low speed (prop wash steering for outboards). */
   washSteer: number;
+  /**
+   * Twin screws / azimuth drives: a yaw couple (N*m) at full wheel that works at any speed, even at rest
+   * (one screw ahead, one astern), so a ship can turn on the spot without a rudder flow.
+   */
+  pivot?: number;
+}
+
+/** A tunnel thruster: pushes the hull sideways at a station along its length. */
+export interface Thruster {
+  /** Local x of the tunnel. */
+  x: number;
+  /** Maximum side force (N). */
+  force: number;
 }
 
 export interface SailSpec {
@@ -77,7 +90,7 @@ export interface Cockpit {
 }
 
 export interface BoatSpec {
-  id: 'console' | 'gofast' | 'cruiser' | 'sloop' | 'pontoon';
+  id: 'console' | 'gofast' | 'cruiser' | 'charter' | 'sloop' | 'pontoon' | 'tug' | 'ferry' | 'liner';
   name: string;
   short: string;
   tagline: string;
@@ -95,6 +108,8 @@ export interface BoatSpec {
   bumpers: Bumper[];
   engine: EngineSpec;
   sail?: SailSpec;
+  /** Bow / stern tunnel thrusters (ferries and ships). */
+  thrusters?: { bow?: Thruster; stern?: Thruster };
   cockpit: Cockpit;
   /** Dry hull windage: frontal & side areas (m^2), drag coeffs, height of centre of effort (local y). */
   wind: { front: number; side: number; cdFront: number; cdSide: number; ceX: number; ceY: number };
@@ -133,6 +148,8 @@ export interface BoatSpec {
     /** How hard the tidal current shoves this hull around. */
     tide: number;
   };
+  /** Linear water resistance (N per m/s of surge) on top of the quadratic drag; heavy ships need it to stop. */
+  linDrag?: number;
   /** Wave-impact speed (m/s) the hull shrugs off; anything harder wears the hull down. */
   strength: number;
   /** How hard the boat is to drive well, 1 (forgiving) to 5 (expert). */

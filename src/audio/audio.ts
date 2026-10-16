@@ -50,8 +50,12 @@ const ENGINES: Record<string, EngineProfile> = {
   console: { idle: 24, max: 175, cutoff: [420, 2300], twin: 0, gain: 1, noise: 0.5 },
   gofast: { idle: 20, max: 215, cutoff: [360, 2700], twin: 0.014, gain: 1.15, noise: 0.6 },
   cruiser: { idle: 15, max: 88, cutoff: [300, 1200], twin: 0.02, gain: 0.95, noise: 0.35 },
+  charter: { idle: 13, max: 78, cutoff: [260, 1050], twin: 0.025, gain: 1.0, noise: 0.35 },
   sloop: { idle: 14, max: 72, cutoff: [280, 950], twin: 0, gain: 0.55, noise: 0.25 },
   pontoon: { idle: 20, max: 140, cutoff: [380, 1800], twin: 0, gain: 0.8, noise: 0.4 },
+  tug: { idle: 11, max: 64, cutoff: [220, 900], twin: 0.03, gain: 1.1, noise: 0.4 },
+  ferry: { idle: 9, max: 52, cutoff: [200, 800], twin: 0.04, gain: 1.15, noise: 0.35 },
+  liner: { idle: 7, max: 38, cutoff: [150, 620], twin: 0.05, gain: 1.2, noise: 0.3 },
 };
 
 const MOODS: Record<string, Mood> = {
@@ -65,6 +69,11 @@ const MOODS: Record<string, Mood> = {
   'm-peach': 'sunny',
   'm-dusk': 'sunny',
   'm-gale': 'storm',
+  'n-golden': 'sunny',
+  'n-breeze': 'sunny',
+  'n-fog': 'sunny',
+  'n-nor': 'storm',
+  'n-moon': 'night',
 };
 
 const clamp = (v: number, a: number, b: number): number => Math.min(b, Math.max(a, v));

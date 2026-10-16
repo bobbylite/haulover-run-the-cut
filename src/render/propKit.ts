@@ -67,3 +67,30 @@ export function scatterMesh(geo: BufferGeometry, items: readonly Placement[], ma
   mesh.receiveShadow = true;
   return mesh;
 }
+
+/**
+ * A gable roof of unit size: ridge along x, width across z, the base at y = -0.5 and the ridge at y = +0.5,
+ * so a placement's scale gives it any footprint and pitch.
+ */
+export function gableGeometry(): BufferGeometry {
+  const a = [-0.5, -0.5, -0.5];
+  const b = [0.5, -0.5, -0.5];
+  const c = [0.5, -0.5, 0.5];
+  const d = [-0.5, -0.5, 0.5];
+  const r0 = [-0.5, 0.5, 0];
+  const r1 = [0.5, 0.5, 0];
+  // two slopes and the two gable ends, wound counter-clockwise seen from outside
+  const tris = [a, r0, r1, a, r1, b, d, c, r1, d, r1, r0, a, d, r0, b, r1, c];
+  const pos = new Float32Array(tris.length * 3);
+  tris.forEach((v, i) => {
+    pos[i * 3] = v[0] as number;
+    pos[i * 3 + 1] = v[1] as number;
+    pos[i * 3 + 2] = v[2] as number;
+  });
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(pos, 3));
+  // PartBuilder merges position + normal + uv, so a prop that goes through it needs a (flat) uv too
+  g.setAttribute('uv', new BufferAttribute(new Float32Array(tris.length * 2), 2));
+  g.computeVertexNormals();
+  return g;
+}

@@ -1,7 +1,7 @@
 # AGENTS.md: working on Run the Cut
 
 *Pastel, physics-driven boating games on one engine: **Haulover** (run the inlet, dock in the marina),
-**Montauk** (find bait, troll, hook and land a tuna), **Nantucket** (docking, up to cruise ships; not started).
+**Montauk** (find bait, troll, hook and land a tuna), **Nantucket** (berthing: slips, wharves, moorings, up to a cruise ship).
 three.js WebGPU + TSL, TypeScript, Vite, Vitest, Biome. No asset files: everything is procedural.*
 
 This file is for any coding agent (and human). Claude Code reads it through `CLAUDE.md`. Keep it accurate: if you
@@ -14,7 +14,7 @@ learn something that cost you time, add it to **Gotchas**.
 2. Skills (read the `SKILL.md` before the matching kind of work; they are plain markdown any agent can follow):
    - `.claude/skills/pastel-art-style/`: **anything seen** (props, colours, skies, shaders, HUD, CSS, icons).
    - `.claude/skills/playtest-and-verify/`: how to run the gates, screenshots, headless bots and the agent API.
-   - `.claude/skills/add-game-mode/`: adding a Location + GameMode (Nantucket) or a mechanic with its own rules/UI/tests.
+   - `.claude/skills/add-game-mode/`: adding a Location + GameMode or a mechanic with its own rules/UI/tests (Nantucket is the berth-based example).
 3. `npm run check` must pass before you hand work back (biome + tsc + vitest, about 30 s). `npm run build` too if
    you touched `src/`.
 
@@ -28,6 +28,7 @@ npm test | npm run lint | npm run typecheck | npm run build | npm run format
 node scripts/shot.mjs ...        # screenshots from real Chrome (WebGPU)         -> see playtest-and-verify
 node scripts/sim-run.mjs ...     # a whole Haulover run, headless, scripted pilot
 node scripts/fish-run.mjs ...    # whole Montauk days;  fish-fights.mjs: land rates per tier
+node scripts/dock-run.mjs ...    # Nantucket levels (--level liner-east | --all), the harbour pilot at the helm
 node scripts/agent-demo.mjs ...  # an agent loop over window.__agent (the template for a real agent)
 node scripts/palette-check.mjs --changed   # hex colours in your diff outside the pastel envelope
 ```
@@ -38,11 +39,12 @@ your servers when you finish**.
 
 ```
 src/main.ts            pick a game (title screen or ?game=), lazy-load the engine + mode, start the frame loop
-src/game/              Game (engine host: renderer, sea, boat, camera, input, audio, phase machine, shared feedback),
+src/game/              berthing.ts + berthScore.ts + harborPilot.ts (Nantucket's pure berth rules, scoring and test pilot),
+                       Game (engine host: renderer, sea, boat, camera, input, audio, phase machine, shared feedback),
                        GameMode/ModeUi/ModeDef seam (mode.ts), settings (per-game saves), camera, input, scoring
 src/games/<id>/        one game's RULES + UI: mode.ts, ui.ts, visuals.ts, dev.ts (scripted pilot); registry.ts lists them
 src/locations/<place>/ one place's DATA + scenery: geography.ts (pure fns of x,z), terrain.ts, props/, index.ts (a Location)
-src/sim/               pure physics/rules, no rendering: boat, boatWater, waves, waveRide, sail, environment, geoGrid,
+src/sim/               pure physics/rules, no rendering: boat, boatWater, waves, waveRide, sail, tugs, environment, geoGrid,
   sim/fishing/         fish world, trolling tackle, the fight (seeded, deterministic)
 src/render/            renderer, water, sky/atmosphere, post pipeline, toon materials, boats/, fx/, birds, propKit, terrainMesh
 src/ui/ src/shell/     shell UI (loading, shared menu, dials, pause, results, touch), the title screen
@@ -88,9 +90,31 @@ A mode never touches the renderer's internals; it uses `host.*` (`toast`, `cam`,
 - Headless run-to-run variation: real animation frames advance the sea clock before a script takes over. For
   reproducible runs use the agent API (`?agent&seed=N`). Always compare against a clean-checkout baseline before blaming
   your change (`git worktree add /tmp/base HEAD`, symlink `node_modules`, own port).
+- Boat hulls are lofted meshes, so **triangle winding is art direction**: `loftShell` faces outward (livery on the outside,
+  plain liner inside), `hullStrip` faces up (decks and soles are only drawn from above), and `loftTransom` must close its
+  fan or the sea shows through the stern. Open-deck hulls also cut the sea out of themselves (`HullCut` in
+  `render/water.ts`, fed from `Game.hullCut`); the pontoon opts out because you must see the water between its tubes.
+  A cockpit that "looks full of water" is a winding or cut-out bug, not a colour problem.
+- Adding a boat touches: `BoatSpec['id']` (`sim/boatSpec.ts`) and `GameConfig['boat']` (`game/state.ts`), a `make*()` +
+  `HULL_OPTS` entry in `data/boats.ts`, a model in `render/boats/models/` registered in `boatModel.ts` (builder + paints),
+  `boatIcon` in `ui/icons.ts`, an `ENGINES` profile in `audio/audio.ts`, and the `TOP` / tune / slow-boat tables in
+  `tests/`. Set `dragX` from `TUNE=1 npx vitest run tests/tune.test.ts` (it prints the drag that gives the target top speed).
 - macOS: BSD `sed` needs `sed -i ''`; there is no `timeout`. Prefer the edit tools or a small Python script.
 - `GameConfig.route` is still Haulover's; Docking/Traffic/ResultState are Haulover-shaped. Generalise when the next game
   needs it (see the roadmap's carried-forward list), not speculatively.
+- **Grids index by whole cells:** a Location's `world` extents must be whole multiples of both `cell` and `flowCell`,
+  or `GeoGrid` produces NaN heights and the page renders black (Nantucket's is 2800 x 1800 over 8 m / 10 m cells).
+- **Carving a shape out of land:** `max(land, -hole)` leaves a phantom "wall" of small SDF values across the hole's open
+  mouth, and `hardSDF` built on it blocks boats. Build land as a union of blocks around the hole (see Nantucket's
+  `landSDF`), then `hardSDF` is only ever a real edge.
+- **Big hulls:** a ship needs `thrusters`, `engine.pivot`, a dense bumper set (`bumperCount` in `data/hull.ts`) and a lin
+  drag (`linDrag`) to stop; the fairway must be dredged to its keel (the radar shades the shallows from `keelDepth`).
+  `Boat.impactMin` (default 1 m/s) is the closing speed a hard contact is reported at: a docking game lowers it to 0.3.
+- **`PartBuilder` merges position + normal + uv:** a custom geometry you `pb.add()` needs a (flat) `uv` or the merge fails
+  with a console error and the whole material bucket vanishes.
+- **Level clocks come from the pilot:** Nantucket's `time` values are ~1.5x what the test pilot needs at the middle
+  difficulty. When you change a hull, a berth or the tide, re-run `scripts/dock-run.mjs --all` (or the dock tests) and
+  re-derive them rather than guessing.
 - Shared files everyone edits (`style.css`, `registry.ts`, `state.ts`, `game.ts`, `weather.ts`): append and keep diffs
   small so parallel branches merge.
 
@@ -126,5 +150,6 @@ fields via `GameMode.agentState()` / `agentAct()`, not to the API itself.
 
 ## State of the project (keep current; details in the roadmap)
 
-Haulover: complete. Montauk: playable v1 (search, troll, fight; polish backlog in the roadmap). Nantucket: not
-started; M3c (a big-vessel physics spike) is the suggested first task. Tests: ~170, all green; `npm run check` is clean.
+Haulover: complete. Montauk: playable v1 (search, troll, fight; polish backlog in the roadmap). Nantucket: playable v1
+(twelve berthing challenges, nine vessels incl. tug / ferry / cruise ship, thrusters, tugs, stars and unlocks; backlog in
+the roadmap). Tests: ~320, all green; `npm run check` is clean (about a minute).

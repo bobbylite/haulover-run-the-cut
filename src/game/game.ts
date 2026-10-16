@@ -5,7 +5,7 @@
 import { Quaternion, Vector3 } from 'three/webgpu';
 import { AudioEngine, type AudioFrame } from '../audio/audio';
 import { clamp, damp, KNOTS, wrapAngle } from '../core/math';
-import { boatById } from '../data/boats';
+import { boatById, HULL_OPTS } from '../data/boats';
 import { type Difficulty, difficultyById } from '../data/difficulty';
 import { weatherById } from '../data/weather';
 import type { Location } from '../locations/types';
@@ -37,6 +37,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   tide: 'ebb',
   difficulty: 'weekender',
   route: 'full',
+  level: '',
 };
 
 type Listener<T> = (v: T) => void;
@@ -123,7 +124,7 @@ export class Game {
     const tick = () => new Promise<void>((r) => requestAnimationFrame(() => setTimeout(r, 0)));
     const q = new URLSearchParams(location.search);
     const cfgQ: Partial<GameConfig> = {};
-    for (const k of ['boat', 'weather', 'tide', 'difficulty', 'route'] as const) {
+    for (const k of ['boat', 'weather', 'tide', 'difficulty', 'route', 'level'] as const) {
       const v = q.get(k);
       if (v) (cfgQ as Record<string, string>)[k] = v;
     }
@@ -486,6 +487,18 @@ export class Game {
 
   private readonly wb: WakeBoat[] = [];
 
+  /** A hull's planform in the boat's frame, for cutting the sea out of it (open-deck hulls, the pontoon, skip it). */
+  private hullCut(spec: Boat['spec']): WakeBoat['hull'] {
+    if (spec.id === 'pontoon') return undefined;
+    const o = HULL_OPTS.get(spec.id);
+    if (!o) return undefined;
+    return {
+      halfLen: o.length * 0.5 * 0.97,
+      halfBeam: o.beam * 0.5 * 0.92,
+      shift: o.xAft + o.length / 2 - spec.cg[0],
+    };
+  }
+
   private wakeEntry(b: Boat): WakeBoat {
     const spec = b.spec;
     const sun = this.rw.weather.sunDir;
@@ -508,6 +521,7 @@ export class Game {
       planing01:
         clamp((sp - spec.hump.speed) / Math.max(1, spec.planing.speed - spec.hump.speed), 0, 1) *
         (spec.planing.fraction > 0.1 ? 1 : 0.2),
+      hull: this.hullCut(spec),
       shadowU: wx * b.fwd.x + wz * b.fwd.z,
       shadowV: wx * b.right.x + wz * b.right.z,
       sun: strength,

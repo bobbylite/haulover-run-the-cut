@@ -1,0 +1,265 @@
+// The big vessels of Nantucket: a work tug, an island ferry and a cruise ship. They run on the very same
+// rigid-body physics as the small boats (heavier, with twin-screw pivot torque, tunnel thrusters and a good
+// deal of momentum), and sit above them on the docking difficulty ladder.
+
+import type { BoatSpec } from '../sim/boatSpec';
+import { buildHull, HULL_OPTS, type HullOpts, inertia } from './hull';
+
+/** A ship's waterplane: a blunt stern, a long parallel body, then a fine bow entrance. */
+const shipPlan =
+  (stern: number, bowStart: number, k: number) =>
+  (s: number): number =>
+    s < 0.1
+      ? stern + (1 - stern) * (s / 0.1)
+      : s < bowStart
+        ? 1
+        : (1 - ((s - bowStart) / (1 - bowStart)) ** k) ** 0.62;
+
+function makeTug(): BoatSpec {
+  const o: HullOpts = {
+    length: 19.5,
+    beam: 7.2,
+    xAft: -9.4,
+    mass: 230000,
+    draft: 2.7,
+    planform: shipPlan(0.78, 0.66, 1.9),
+    lateral: [-0.82, -0.5, -0.17, 0.17, 0.5, 0.82],
+    nx: 10,
+    rocker: 0.5,
+    rockerStart: 0.6,
+    freeboard: 1.3,
+    sheerBow: 0.9,
+    sheerStern: -0.15,
+    cgY: 0.35,
+    trimBias: 0,
+    dragX: 660,
+    dragZ: 31000,
+    hump: { speed: 4, width: 2, gain: 0 },
+    cpS: 0.4,
+    weirScale: 0.05,
+    heaveZeta: 0.5,
+    flare: 0.5,
+    bumperCount: 6,
+    bumperR: 0.7,
+  };
+  const h = buildHull(o);
+  HULL_OPTS.set('tug', o);
+  return {
+    id: 'tug',
+    name: 'Muskeget 64',
+    short: 'Tug',
+    tagline: 'Harbor work tug',
+    blurb:
+      'Short, deep and strong, with twin screws that spin her on the spot. The best boat on the harbor for learning to think in pushes.',
+    length: o.length,
+    beam: o.beam,
+    mass: o.mass,
+    draft: o.draft,
+    cg: [h.cgX, o.cgY, 0],
+    inertia: inertia(o.length, o.beam, o.mass),
+    samples: h.samples,
+    weirs: h.weirs,
+    bumpers: h.bumpers,
+    engine: {
+      x: -8.4,
+      y: -2.0,
+      thrust: 96000,
+      zeroThrustSpeed: 8.2,
+      reverse: 0.85,
+      steerMax: 0.6,
+      steerRate: 1.2,
+      rudder: 7000,
+      sound: 'diesel',
+      washSteer: 0.9,
+      pivot: 380000,
+    },
+    thrusters: { bow: { x: 7.4, force: 22000 } },
+    cockpit: { x0: -8.6, x1: -5.2, halfWidth: 2.4, soleY: 1.5, scupper: 0.6, scupperX: -8.6 },
+    wind: { front: 24, side: 78, cdFront: 0.9, cdSide: 1.1, ceX: h.cgX + 0.8, ceY: 3.6 },
+    keel: 1.2,
+    flare: o.flare,
+    keelDepth: 2.9,
+    angDamp: [250000, 2600000, 2200000],
+    capacity: 60000,
+    waterMassScale: 1,
+    pump: 90,
+    planing: { speed: 99, fraction: 0, aoa: 0.05 },
+    hullSpeed: 5.8,
+    hump: o.hump,
+    trim: { plane: 0, hump: 0, gain: 0 },
+    linDrag: 400,
+    topSpeed: 6.1,
+    camera: { distance: 30, height: 10.5, look: 4.5, helm: [4.6, 5.4, 0] },
+    stats: { speed: 0.26, handling: 0.9, stability: 0.9, dryness: 1, windage: 0.35, tide: 0.3 },
+    strength: 14,
+    skill: 3,
+    scoreMult: 1.25,
+  };
+}
+
+function makeFerry(): BoatSpec {
+  const o: HullOpts = {
+    length: 46,
+    beam: 11.6,
+    xAft: -21.8,
+    mass: 950000,
+    draft: 2.5,
+    planform: shipPlan(0.86, 0.7, 2.1),
+    lateral: [-0.86, -0.56, -0.2, 0.2, 0.56, 0.86],
+    nx: 14,
+    rocker: 0.6,
+    rockerStart: 0.62,
+    freeboard: 2.8,
+    sheerBow: 1.1,
+    sheerStern: -0.2,
+    cgY: 1.4,
+    trimBias: 0,
+    dragX: 840,
+    dragZ: 64000,
+    hump: { speed: 5, width: 2.5, gain: 0 },
+    cpS: 0.4,
+    weirScale: 0.05,
+    heaveZeta: 0.5,
+    flare: 0.4,
+    bumperCount: 12,
+    bumperR: 0.9,
+  };
+  const h = buildHull(o);
+  HULL_OPTS.set('ferry', o);
+  return {
+    id: 'ferry',
+    name: 'Islander 150',
+    short: 'Ferry',
+    tagline: 'Island ferry, 46 m',
+    blurb:
+      'A boxy passenger ferry with twin screws and a bow thruster. All that freeboard is a sail in a crosswind: use the thruster early, not late.',
+    length: o.length,
+    beam: o.beam,
+    mass: o.mass,
+    draft: o.draft,
+    cg: [h.cgX, o.cgY, 0],
+    inertia: inertia(o.length, o.beam, o.mass),
+    samples: h.samples,
+    weirs: h.weirs,
+    bumpers: h.bumpers,
+    engine: {
+      x: -19.4,
+      y: -1.8,
+      thrust: 190000,
+      zeroThrustSpeed: 13,
+      reverse: 0.55,
+      steerMax: 0.5,
+      steerRate: 0.5,
+      rudder: 28000,
+      sound: 'diesel',
+      washSteer: 0.4,
+      pivot: 1700000,
+    },
+    thrusters: { bow: { x: 17.5, force: 60000 }, stern: { x: -17, force: 40000 } },
+    cockpit: { x0: -21, x1: -12, halfWidth: 4.4, soleY: 2.0, scupper: 1.5, scupperX: -21 },
+    wind: { front: 95, side: 330, cdFront: 0.9, cdSide: 1.15, ceX: h.cgX + 1.5, ceY: 5.5 },
+    keel: 1.4,
+    flare: o.flare,
+    keelDepth: 2.7,
+    angDamp: [4000000, 38000000, 30000000],
+    capacity: 400000,
+    waterMassScale: 1,
+    pump: 600,
+    planing: { speed: 99, fraction: 0, aoa: 0.05 },
+    hullSpeed: 9.4,
+    hump: o.hump,
+    trim: { plane: 0, hump: 0, gain: 0 },
+    linDrag: 1500,
+    topSpeed: 8.7,
+    camera: { distance: 66, height: 22, look: 9, helm: [13, 8.4, 0] },
+    stats: { speed: 0.32, handling: 0.45, stability: 0.95, dryness: 1, windage: 0.75, tide: 0.35 },
+    strength: 16,
+    skill: 4,
+    scoreMult: 1.6,
+  };
+}
+
+function makeLiner(): BoatSpec {
+  const o: HullOpts = {
+    length: 116,
+    beam: 22.5,
+    xAft: -55,
+    mass: 7000000,
+    draft: 5.2,
+    planform: shipPlan(0.88, 0.72, 2.2),
+    lateral: [-0.9, -0.66, -0.4, -0.14, 0.14, 0.4, 0.66, 0.9],
+    nx: 24,
+    rocker: 0.9,
+    rockerStart: 0.66,
+    freeboard: 6.8,
+    sheerBow: 1.8,
+    sheerStern: -0.3,
+    cgY: 3.0,
+    trimBias: 0,
+    dragX: 1800,
+    dragZ: 340000,
+    hump: { speed: 7, width: 3, gain: 0 },
+    cpS: 0.4,
+    weirScale: 0.05,
+    heaveZeta: 0.55,
+    flare: 0.3,
+    bumperCount: 22,
+    bumperR: 1.2,
+  };
+  const h = buildHull(o);
+  HULL_OPTS.set('liner', o);
+  return {
+    id: 'liner',
+    name: 'Grey Lady 380',
+    short: 'Liner',
+    tagline: 'Cruise ship, 116 m',
+    blurb:
+      'Seven thousand tonnes of momentum and a wall of windage. Plan the whole approach, walk her in with the thrusters and call the tugs before you need them.',
+    length: o.length,
+    beam: o.beam,
+    mass: o.mass,
+    draft: o.draft,
+    cg: [h.cgX, o.cgY, 0],
+    inertia: inertia(o.length, o.beam, o.mass),
+    samples: h.samples,
+    weirs: h.weirs,
+    bumpers: h.bumpers,
+    engine: {
+      x: -52,
+      y: -3.5,
+      thrust: 600000,
+      zeroThrustSpeed: 15,
+      reverse: 0.45,
+      steerMax: 0.45,
+      steerRate: 0.35,
+      rudder: 100000,
+      sound: 'diesel',
+      washSteer: 0.3,
+      pivot: 9000000,
+    },
+    thrusters: { bow: { x: 48, force: 330000 }, stern: { x: -46, force: 230000 } },
+    cockpit: { x0: -50, x1: -30, halfWidth: 8, soleY: 6.0, scupper: 4, scupperX: -50 },
+    wind: { front: 480, side: 2050, cdFront: 0.9, cdSide: 1.1, ceX: h.cgX + 2, ceY: 13 },
+    keel: 1.4,
+    flare: o.flare,
+    keelDepth: 5.4,
+    angDamp: [250000000, 250000000, 400000000],
+    capacity: 3000000,
+    waterMassScale: 1,
+    pump: 3000,
+    planing: { speed: 99, fraction: 0, aoa: 0.05 },
+    hullSpeed: 12.5,
+    hump: o.hump,
+    trim: { plane: 0, hump: 0, gain: 0 },
+    linDrag: 5000,
+    topSpeed: 9.9,
+    camera: { distance: 150, height: 50, look: 22, helm: [38, 26, 0] },
+    stats: { speed: 0.36, handling: 0.15, stability: 1, dryness: 1, windage: 1, tide: 0.5 },
+    strength: 20,
+    skill: 5,
+    scoreMult: 2.2,
+  };
+}
+
+/** The harbour's ships, in order of difficulty. */
+export const SHIPS: readonly BoatSpec[] = [makeTug(), makeFerry(), makeLiner()];

@@ -167,6 +167,11 @@ export class RenderWorld {
     atmos.sync(weather, { x: env.wind.dirX * env.wind.speed, z: env.wind.dirZ * env.wind.speed }, env.time);
     this.sky.update(this.camera);
     this.water.update(this.camera, env, weather);
+    this.water.setHulls(
+      boats.flatMap((b) => (b.hull ? [{ x: b.x, z: b.z, heading: b.heading, ...b.hull }] : [])),
+      this.camera.position.x,
+      this.camera.position.z,
+    );
     this.post.update(weather);
     this.props.update(dt, env.time, env);
     const pl = boats[0];
