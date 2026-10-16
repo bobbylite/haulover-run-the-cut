@@ -2,8 +2,8 @@
 // piers or the boats that are circulating in the basin.
 
 import { clamp, wrapAngle } from '../core/math';
+import type { SlipBerth } from '../locations/types';
 import type { Boat, BoatEnv } from '../sim/boat';
-import { SLIP } from '../sim/geography';
 
 /** Everything the HUD and the audio need to know about the docking attempt. */
 export interface DockStatus {
@@ -29,26 +29,30 @@ const MAX_ALIGN = 0.38; // rad (22 degrees), bow-in or stern-in
 const HOLD = 1.8;
 
 export class Docking {
+  constructor(readonly berth: SlipBerth) {
+    this.status = {
+      timeLeft: 0,
+      dist: 0,
+      speedKn: 0,
+      alignDeg: 0,
+      speedOk: false,
+      alignOk: false,
+      posOk: false,
+      hold: 0,
+      need: HOLD,
+      clearance: 99,
+      berthX: berth.x1,
+      berthZ: berth.z,
+      slow: MAX_SPEED,
+    };
+  }
+
   active = false;
   t = 0;
   hold = 0;
   touches = 0;
   limit = 120;
-  readonly status: DockStatus = {
-    timeLeft: 0,
-    dist: 0,
-    speedKn: 0,
-    alignDeg: 0,
-    speedOk: false,
-    alignOk: false,
-    posOk: false,
-    hold: 0,
-    need: HOLD,
-    clearance: 99,
-    berthX: SLIP.x1,
-    berthZ: SLIP.z,
-    slow: MAX_SPEED,
-  };
+  readonly status: DockStatus;
 
   reset(): void {
     this.active = false;
@@ -67,7 +71,7 @@ export class Docking {
 
   /** Where the centre of a boat of this length should end up. */
   berthX(length: number): number {
-    return SLIP.x1 - (length * 0.5 + 1.1);
+    return this.berth.x1 - (length * 0.5 + 1.1);
   }
 
   /** Advance the attempt. Returns 'docked' when the boat has been parked long enough. */
@@ -76,7 +80,7 @@ export class Docking {
     const st = this.status;
     this.t += dt;
     st.berthX = this.berthX(spec.length);
-    st.berthZ = SLIP.z;
+    st.berthZ = this.berth.z;
     const dx = boat.pos.x - st.berthX;
     const dz = boat.pos.z - st.berthZ;
     st.dist = Math.hypot(dx, dz);

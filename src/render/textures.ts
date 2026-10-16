@@ -13,7 +13,7 @@ import {
   UnsignedByteType,
 } from 'three/webgpu';
 import { hash2, lerp, Rng, TAU } from '../core/math';
-import { FLOW_NX, FLOW_NZ, type GeoGrid, NX, NZ } from '../sim/geography';
+import type { GeoGrid } from '../sim/geoGrid';
 
 const toHalf = DataUtils.toHalfFloat;
 
@@ -183,6 +183,8 @@ function halfTex(data: Uint16Array, w: number, h: number): DataTexture {
 
 /** RGBA16F: R height (m), G swell exposure, B haystack mask, A floor kind. */
 export function makeGeoTexture(geo: GeoGrid): DataTexture {
+  const NX = geo.nx;
+  const NZ = geo.nz;
   const d = new Uint16Array(NX * NZ * 4);
   for (let i = 0; i < NX * NZ; i++) {
     d[i * 4] = toHalf(geo.height[i] as number);
@@ -195,6 +197,8 @@ export function makeGeoTexture(geo: GeoGrid): DataTexture {
 
 /** RGBA16F: RG unit tidal flow (ebb positive). */
 export function makeFlowTexture(geo: GeoGrid): DataTexture {
+  const FLOW_NX = geo.flowNx;
+  const FLOW_NZ = geo.flowNz;
   const d = new Uint16Array(FLOW_NX * FLOW_NZ * 4);
   for (let i = 0; i < FLOW_NX * FLOW_NZ; i++) {
     d[i * 4] = toHalf(geo.flowX[i] as number);

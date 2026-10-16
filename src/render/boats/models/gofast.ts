@@ -3,7 +3,7 @@
 import { Group, Mesh } from 'three/webgpu';
 import { sheerAt } from '../../../data/boats';
 import type { BoatSpec } from '../../../sim/boatSpec';
-import { hullMeshes, hullOpts, type ModelParts, makeFlag, makeHullShape, navLights } from '../common';
+import { addEnsign, hullMeshes, hullOpts, type ModelParts, makeHullShape, navLights } from '../common';
 import { gunwaleLine, hullStrip } from '../loft';
 import { gel, glass, matte, metal, teak } from '../materials';
 import { PartBuilder } from '../parts';
@@ -119,9 +119,10 @@ export function buildGoFast(spec: BoatSpec, paint: GoFastPaint = GOFAST_PAINT): 
     engines.push(eng);
   }
 
-  const flag = makeFlag(0.5, 0.26, '#4fdfe6', '#fffaf6', 2);
-  flag.position.set(-4.7, 0.95, 0);
-  root.add(flag);
+  // national ensign on a stern staff between the outboards
+  const spb = new PartBuilder();
+  const ensign = addEnsign(spb, [-4.82, 0.5, 0], 1.15, 0.78);
+  root.add(spb.build(), ensign);
 
-  return { group: root, engines, flags: [flag] };
+  return { group: root, engines, flags: [ensign] };
 }

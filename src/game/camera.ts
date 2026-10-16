@@ -6,10 +6,14 @@ import type { Boat } from '../sim/boat';
 import type { Environment } from '../sim/environment';
 import type { Input } from './input';
 
-export type CamMode = 'chase' | 'helm' | 'orbit';
+export type CamMode = 'chase' | 'helm' | 'orbit' | 'fight';
 
 export class GameCamera {
   mode: CamMode = 'chase';
+  /** A mode can zoom the lens (binoculars): the field of view to hold, or null for the normal one. */
+  fovOverride: number | null = null;
+  /** The fish on the line (world x, z): the fight camera keeps it in frame. */
+  fightFocus: { x: number; z: number } | null = null;
   private yaw = 0;
   private readonly sm = new Vector3();
   private readonly pos = new Vector3();
@@ -38,7 +42,14 @@ export class GameCamera {
   }
 
   cycle(): void {
-    this.mode = this.mode === 'chase' ? 'helm' : this.mode === 'helm' ? 'orbit' : 'chase';
+    this.mode =
+      this.mode === 'chase'
+        ? 'helm'
+        : this.mode === 'helm'
+          ? 'orbit'
+          : this.mode === 'orbit'
+            ? 'chase'
+            : 'chase';
   }
 
   /** Shift the rendered frustum sideways (menu layouts). */
@@ -71,17 +82,30 @@ export class GameCamera {
 
     if (mode === 'helm') {
       const h = spec.camera.helm;
+      // binoculars are raised from above the canopy so the frame does not fill the lens
+      const lift = this.fovOverride ? 1.7 : 0;
       this.tmp
-        .set(h[0] - spec.cg[0], h[1] - spec.cg[1], h[2] - spec.cg[2])
+        .set(h[0] - spec.cg[0], h[1] - spec.cg[1] + lift, h[2] - spec.cg[2])
         .applyQuaternion(boat.quat)
         .add(boat.pos);
       this.pos.lerp(this.tmp, 1 - Math.exp(-30 * dt));
       cam.position.copy(this.pos);
       const fwd = boat.fwd;
-      this.look.set(this.pos.x + fwd.x * 40, this.pos.y + fwd.y * 40 - 0.5, this.pos.z + fwd.z * 40);
-      cam.up.set(0, 1, 0).lerp(boat.up, 0.18).normalize();
+      // dragging looks around from the helm; the binoculars hold the horizon whatever the boat is doing
+      const ly = Math.atan2(fwd.z, fwd.x) + input.orbitYaw;
+      const lp = -input.orbitPitch * 0.5;
+      this.look.set(
+        this.pos.x + Math.cos(ly) * 40,
+        this.pos.y + (this.fovOverride ? 0 : fwd.y * 40 - 0.5) + Math.sin(lp) * 40,
+        this.pos.z + Math.sin(ly) * 40,
+      );
+      cam.up
+        .set(0, 1, 0)
+        .lerp(boat.up, this.fovOverride ? 0 : 0.18)
+        .normalize();
       cam.lookAt(this.look);
-      this.fov += (66 + 10 * smoothstep(0, spec.topSpeed, sp) - this.fov) * damp(3, dt);
+      const fovWant = this.fovOverride ?? 66 + 10 * smoothstep(0, spec.topSpeed, sp);
+      this.fov += (fovWant - this.fov) * damp(this.fovOverride ? 9 : 3, dt);
       this.applyFov();
       return;
     }
@@ -99,6 +123,34 @@ export class GameCamera {
       cam.lookAt(this.look);
       this.fov += (48 - this.fov) * damp(3, dt);
       this.applyFov();
+      this.clampToWater(time);
+      return;
+    }
+
+    // ---- fight: out beyond the bow, looking back past the boat at the fish -------------------
+    if (mode === 'fight' && this.fightFocus) {
+      const fx = this.fightFocus.x;
+      const fz = this.fightFocus.z;
+      let dx = boat.pos.x - fx;
+      let dz = boat.pos.z - fz;
+      const d = Math.max(6, Math.hypot(dx, dz));
+      dx /= d;
+      dz /= d;
+      const z = input.zoom;
+      const back = clamp(9 + d * 0.2, 11, 36) * z;
+      const height = clamp(4.2 + d * 0.09, 5, 15) * (0.8 + 0.2 * z);
+      this.tmp.set(boat.pos.x + dx * back - dz * 6.5, this.sm.y + height, boat.pos.z + dz * back + dx * 6.5);
+      this.pos.lerp(this.tmp, this.inited ? 1 - Math.exp(-2.4 * dt) : 1);
+      cam.position.copy(this.pos);
+      this.look.set(
+        boat.pos.x + (fx - boat.pos.x) * 0.52,
+        this.sm.y + 0.3,
+        boat.pos.z + (fz - boat.pos.z) * 0.52,
+      );
+      cam.lookAt(this.look);
+      this.fov += (54 + 6 * smoothstep(20, 90, d) - this.fov) * damp(2.5, dt);
+      this.applyFov();
+      this.applyShake(dt, time);
       this.clampToWater(time);
       return;
     }

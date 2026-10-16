@@ -5,13 +5,12 @@
 import { clamp, Rng } from '../core/math';
 import { boatById } from '../data/boats';
 import type { WeatherPreset } from '../data/weather';
+import type { Harbor } from '../locations/types';
 import { BoatModel } from '../render/boats/boatModel';
 import type { WakeBoat } from '../render/wake';
 import { Boat, type BoatEnv } from '../sim/boat';
-import { DynamicObstacles } from '../sim/boatEnv';
-import { BASIN_LOOP } from '../sim/geography';
+import type { DynamicObstacles } from '../sim/boatEnv';
 import { Autopilot, type Waypoint } from './autopilot';
-import { makeCourse } from './course';
 
 interface Vessel {
   boat: Boat;
@@ -56,21 +55,27 @@ const BASIN_CAST: Plan[] = [
 ];
 
 /** Closed racetrack round the harbour fairway (counter-clockwise from above, 4 m spacing). */
-function basinLoop(): Waypoint[] {
+function basinLoop(loop: Harbor['basinLoop']): Waypoint[] {
   const pts: Waypoint[] = [];
-  const per = Math.PI * 2 * Math.sqrt((BASIN_LOOP.rx ** 2 + BASIN_LOOP.rz ** 2) / 2);
+  const per = Math.PI * 2 * Math.sqrt((loop.rx ** 2 + loop.rz ** 2) / 2);
   const n = Math.round(per / 4);
   for (let i = 0; i < n; i++) {
     const t = (i / n) * Math.PI * 2;
     pts.push({
-      x: BASIN_LOOP.x + Math.cos(t) * BASIN_LOOP.rx,
-      z: BASIN_LOOP.z + Math.sin(t) * BASIN_LOOP.rz,
+      x: loop.x + Math.cos(t) * loop.rx,
+      z: loop.z + Math.sin(t) * loop.rz,
     });
   }
   return pts;
 }
 
 const LANE = 17;
+
+/** Where the ambient traffic runs: the centre line of the channel it keeps to the right of, and the harbour oval. */
+export interface TrafficLayout {
+  lanePath: Waypoint[];
+  basinLoop: Harbor['basinLoop'];
+}
 
 export function laneOf(path: Waypoint[], dir: 1 | -1): Waypoint[] {
   const base = dir === 1 ? path : [...path].reverse();
@@ -87,20 +92,22 @@ export function laneOf(path: Waypoint[], dir: 1 | -1): Waypoint[] {
 
 export class Traffic {
   readonly vessels: Vessel[] = [];
-  readonly obstacles = new DynamicObstacles();
   private readonly rng = new Rng(7007);
   private readonly lanes: Record<'1' | '-1', Waypoint[]>;
   private readonly wb: WakeBoat[] = [];
   private count = 4;
   private density = 1;
-  private readonly loop = basinLoop();
+  private readonly loop: Waypoint[];
 
   constructor(
     private readonly addModel: (m: BoatModel) => void,
     private readonly removeModel: (m: BoatModel) => void,
+    layout: TrafficLayout,
+    /** The host's list of moving hard obstacles: cleared and refilled every update. */
+    readonly obstacles: DynamicObstacles,
   ) {
-    const path = makeCourse('outbound').path;
-    this.lanes = { '1': laneOf(path, 1), '-1': laneOf(path, -1) };
+    this.loop = basinLoop(layout.basinLoop);
+    this.lanes = { '1': laneOf(layout.lanePath, 1), '-1': laneOf(layout.lanePath, -1) };
   }
 
   /** (Re)populate for the current weather. `avoidX` keeps newcomers clear of the player's start. */
@@ -153,6 +160,7 @@ export class Traffic {
     const boat = new Boat(spec);
     boat.reset(p0.x, p0.z, heading, env);
     boat.capacityLimit = spec.capacity * 1.6;
+    boat.indestructible = true;
     boat.water.autoBilge = 0.6;
     boat.sailUp = false;
     // storms make for cautious skippers

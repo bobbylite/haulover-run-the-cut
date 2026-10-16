@@ -32,6 +32,8 @@ export interface AudioFrame {
   clearance: number;
   /** The prop is wrapped in a line: the engine coughs. */
   fouled: boolean;
+  /** A fish on the line (Montauk): line going out, line coming in, and how hard it is loaded (0..1.2). */
+  fishing?: { slip: number; reel: number; tension: number } | null;
 }
 
 interface EngineProfile {
@@ -59,6 +61,10 @@ const MOODS: Record<string, Mood> = {
   squall: 'storm',
   noreaster: 'storm',
   moon: 'night',
+  'm-dawn': 'sunny',
+  'm-peach': 'sunny',
+  'm-dusk': 'sunny',
+  'm-gale': 'storm',
 };
 
 const clamp = (v: number, a: number, b: number): number => Math.min(b, Math.max(a, v));
@@ -105,6 +111,12 @@ export class AudioEngine {
   private patterG?: GainNode;
   private pumpG?: GainNode;
   private flutterG?: GainNode;
+  private dragG?: GainNode;
+  private dragF?: BiquadFilterNode;
+  private reelG?: GainNode;
+  private reelOsc?: OscillatorNode;
+  private strainG?: GainNode;
+  private strainOsc?: OscillatorNode;
 
   /** Create the AudioContext on the first user gesture (browsers block it before that). */
   unlock(): void {
@@ -334,6 +346,32 @@ export class AudioEngine {
     flLfo.start();
     this.flutterG = fl.g;
 
+    // ---- fishing: the drag screaming, the reel's clicks and the strain of a loaded line -----------------
+    const drag = this.loop('white', 'bandpass', 2400, 5, this.sfx);
+    this.dragG = drag.g;
+    this.dragF = drag.f as BiquadFilterNode;
+    const reel = this.loop('pink', 'bandpass', 1500, 2.2, this.sfx);
+    const reelLfo = ctx.createOscillator();
+    reelLfo.type = 'square';
+    reelLfo.frequency.value = 6;
+    const reelD = ctx.createGain();
+    reelD.gain.value = 0.5;
+    reelLfo.connect(reelD);
+    reelD.connect(reel.g.gain);
+    reelLfo.start();
+    this.reelG = reel.g;
+    this.reelOsc = reelLfo;
+    const strain = ctx.createOscillator();
+    strain.type = 'triangle';
+    strain.frequency.value = 600;
+    const strainG = ctx.createGain();
+    strainG.gain.value = 0;
+    strain.connect(strainG);
+    strainG.connect(this.sfx);
+    strain.start();
+    this.strainG = strainG;
+    this.strainOsc = strain;
+
     this.music = new Music(ctx, this.musicBus, this.reverbIn);
     document.addEventListener('visibilitychange', () => {
       if (!this.ctx) return;
@@ -411,6 +449,18 @@ export class AudioEngine {
     // pump + sail flutter ------------------------------------------------------------------------------
     set(this.pumpG?.gain, f.pumping && live ? 0.22 : 0, 0.1);
     set(this.flutterG?.gain, f.sailUp && live ? 0.3 * f.sailLuff ** 1.5 * clamp(w / 9, 0, 1) : 0, 0.15);
+
+    // a fish on the line ------------------------------------------------------------------------------------
+    const fa = live && !paused ? f.fishing : null;
+    const slipK = fa ? clamp(fa.slip / 6, 0, 1) : 0;
+    set(this.dragG?.gain, fa ? 0.26 * slipK ** 0.8 : 0, 0.05);
+    set(this.dragF?.frequency, 1700 + 2800 * clamp((fa?.slip ?? 0) / 8, 0, 1), 0.05);
+    const reelK = fa ? clamp(fa.reel / 2.6, 0, 1) : 0;
+    set(this.reelG?.gain, 0.2 * reelK, 0.08);
+    set(this.reelOsc?.frequency, 5 + 11 * reelK, 0.1);
+    const strainK = fa ? clamp((fa.tension - 0.72) / 0.4, 0, 1) : 0;
+    set(this.strainG?.gain, 0.045 * strainK, 0.06);
+    set(this.strainOsc?.frequency, 520 + 900 * (fa?.tension ?? 0), 0.06);
 
     // music -------------------------------------------------------------------------------------------------
     const m = this.music;
@@ -697,6 +747,27 @@ export class AudioEngine {
       o.stop(t + 0.26);
       vib.stop(t + 0.26);
     }
+  }
+
+  /** A tuna hits the lure: the ratchet screams and a bright bell. */
+  strike(): void {
+    for (let i = 0; i < 12; i++) {
+      this.tone('square', 900 + i * 55, 1500 + i * 90, 0.07, 0.002, 0.05, i * 0.045, 0, 0.1);
+    }
+    this.burst('white', 'bandpass', 3800, 1500, 1.2, 0.3, 0.7, 0, 0, 0.2, 0.02);
+    this.bell(1318.5, 0.18, 0.3);
+    this.bell(1760, 0.15, 0.38);
+  }
+
+  /** A short zip of line leaving the reel. */
+  reelScream(strength: number): void {
+    const s = clamp(strength, 0.2, 1);
+    this.burst('white', 'bandpass', 2000, 4200, 1.6, 0.3 * s, 0.9, 0, 0, 0.15, 0.03);
+  }
+
+  /** The fish finder pings. */
+  sonarPing(): void {
+    this.tone('sine', 1500, 1500, 0.06, 0.003, 0.22, 0, 0.3, 0.4);
   }
 
   /** Menu / HUD interaction blips. */

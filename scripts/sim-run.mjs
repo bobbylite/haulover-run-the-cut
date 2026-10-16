@@ -27,7 +27,7 @@ const res = await page.evaluate(({ maxSecs, base, k, floor }) => {
   const t0 = performance.now();
   while (g.phase !== 'finished' && g.phase !== 'failed' && n < 30 * maxSecs) {
     // optional skill model: carry speed in the bay, ease off in steep water
-    if (k > 0 && !g.docking.active) {
+    if (k > 0 && !g.mode.docking.active) {
       const chop = g.benv.chopAt(g.player.pos.x, g.player.pos.z);
       ap.cruise = base * Math.min(1, Math.max(floor, 1.55 - chop * k));
     }
@@ -48,10 +48,10 @@ const res = await page.evaluate(({ maxSecs, base, k, floor }) => {
     cap: r?.capacityL,
     collisions: r?.collisions,
     dock: r?.dock,
-    gates: g.nextGate + '/' + g.course.gates.length,
-    limit: Math.round(g.runLimit?.() ?? 0),
-    hazards: g.hazards.list.length,
-    vessels: g.traffic.vessels.length,
+    gates: g.mode.nextGate + '/' + g.mode.course.gates.length,
+    limit: Math.round(g.mode.runLimit?.() ?? 0),
+    hazards: g.mode.hazards.list.length,
+    vessels: g.mode.traffic.vessels.length,
   };
 }, { maxSecs: Number(args.max ?? 900), base: Number(args.cruise ?? 0.55), k: Number(args.skill ?? 0), floor: Number(args.floor ?? 0.4) });
 console.log(JSON.stringify({ boat: args.boat, weather: args.weather, diff: args.difficulty, route: args.route, ...res }));

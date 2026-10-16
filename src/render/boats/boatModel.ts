@@ -75,6 +75,10 @@ export class BoatModel {
   private readonly inner = new Group();
   readonly parts: ModelParts;
   private readonly cockpitWater: Mesh;
+  // smoothed sail state, so the boom swings across and the cloth fills over a moment instead of snapping
+  private boomA = 0;
+  private billow = 0.1;
+  private lastT = 0;
 
   constructor(
     readonly spec: BoatSpec,
@@ -94,17 +98,22 @@ export class BoatModel {
     r.position.copy(boat.pos);
     r.quaternion.copy(boat.quat);
 
+    const dt = clamp(time - this.lastT, 0, 0.1);
+    this.lastT = time;
     const p = this.parts;
     for (const e of p.engines) e.rotation.y = boat.steer * 1.3;
     if (p.wheel) p.wheel.rotation.x = boat.steer * 6;
 
-    // flags point downwind
+    // flags stream along the apparent wind: the true wind less the boat's own motion, so on a fast boat
+    // they lie straight back and on a sloop the burgee shows what the sail feels
     const h = boat.heading;
     const ch = Math.cos(h);
     const sh = Math.sin(h);
-    const spd = Math.hypot(wind.x, wind.z) || 1;
-    const dx = wind.x / spd;
-    const dz = wind.z / spd;
+    const awx = wind.x - boat.vel.x;
+    const awz = wind.z - boat.vel.z;
+    const spd = Math.hypot(awx, awz) || 1;
+    const dx = awx / spd;
+    const dz = awz / spd;
     const lx = dx * ch + dz * sh;
     const lz = -dx * sh + dz * ch;
     const base = Math.atan2(-lz, lx);
@@ -130,12 +139,17 @@ export class BoatModel {
       const vis = boat.sailUp;
       s.boom.visible = vis;
       s.jib.visible = vis;
-      const side = boat.boomSide;
+      // the boom swings through the centreline on a tack or gybe; the cloth's belly flips with it
+      const target = boat.boomSide * boat.boomAngle;
+      this.boomA += (target - this.boomA) * Math.min(1, dt * 7);
+      const side = clamp(this.boomA / 0.22, -1, 1);
+      const fill = clamp(boat.sailPower / 3600, 0, 1) * 0.9 + 0.1;
+      this.billow += (fill - this.billow) * Math.min(1, dt * 4);
       s.uSide.value = side;
-      s.uBillow.value = clamp(boat.sailPower / 3600, 0, 1) * 0.9 + 0.1;
+      s.uBillow.value = this.billow;
       s.uLuff.value = boat.sailLuff;
-      s.boom.rotation.y = side * boat.boomAngle;
-      s.jib.rotation.y = side * clamp(boat.boomAngle * 0.82 + 0.04, 0, 1.3);
+      s.boom.rotation.y = this.boomA;
+      s.jib.rotation.y = Math.sign(this.boomA) * clamp(Math.abs(this.boomA) * 0.82 + 0.04, 0, 1.3);
     }
   }
 

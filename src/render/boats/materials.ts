@@ -1,16 +1,23 @@
 // Shared material kit for boats and props: pastel gelcoat, teak, canvas, glass, chrome, lights.
 
 import {
+  abs,
+  atan,
+  cos,
   float,
   floor,
   fract,
   frontFacing,
+  length,
   mix,
   positionLocal,
+  pow,
   select,
   sin,
   smoothstep,
+  step,
   uv,
+  vec2,
   vec3,
   vertexColor,
 } from 'three/tsl';
@@ -111,13 +118,8 @@ export function flashBulb(hex: string, period = 4, phase = 0): MeshBasicNodeMate
   return mat;
 }
 
-/** Flapping cloth: vertex flutter driven by wind, anchored at the pole edge (local x = 0). */
-export function flagMaterial(c1: string, c2: string, bands = 3): ToonMaterial {
-  const m = new ToonMaterial({ roughness: 0.9, metalness: 0, side: DoubleSide });
-  const a = new Color(c1);
-  const b = new Color(c2);
-  const stripe = floor(uv().y.mul(bands)).mod(2);
-  m.colorNode = mix(vec3(a.r, a.g, a.b), vec3(b.r, b.g, b.b), stripe) as N;
+/** Vertex flutter driven by the wind, anchored at the pole edge (local x = 0). */
+function flutter(m: ToonMaterial): void {
   const px = positionLocal.x.max(0.0);
   const amp = px.mul(float(0.06).add(shared.windSpeed.mul(0.014))).min(0.5);
   const wave = sin(
@@ -127,5 +129,55 @@ export function flagMaterial(c1: string, c2: string, bands = 3): ToonMaterial {
       .add(positionLocal.y.mul(2.2)),
   );
   m.positionNode = positionLocal.add(vec3(0.0, 0.0, wave.mul(amp))) as N;
+}
+
+/** Flapping cloth: vertex flutter driven by wind, anchored at the pole edge (local x = 0). */
+export function flagMaterial(c1: string, c2: string, bands = 3): ToonMaterial {
+  const m = new ToonMaterial({ roughness: 0.9, metalness: 0, side: DoubleSide });
+  const a = new Color(c1);
+  const b = new Color(c2);
+  const stripe = floor(uv().y.mul(bands)).mod(2);
+  m.colorNode = mix(vec3(a.r, a.g, a.b), vec3(b.r, b.g, b.b), stripe) as N;
+  flutter(m);
   return m;
+}
+
+/**
+ * The Stars and Stripes, drawn in the shader: thirteen stripes (red on top and bottom), a blue canton over
+ * the top seven, and fifty stars in nine alternating rows of six and five. UV (0,0) is the bottom-left,
+ * hoist on the left, so the canton sits top-left like a real ensign.
+ */
+export function usFlagMaterial(): ToonMaterial {
+  return memo('usflag', () => {
+    const m = new ToonMaterial({ roughness: 0.9, metalness: 0, side: DoubleSide });
+    const red = new Color('#e0404d');
+    const white = new Color('#fffaf3');
+    const blue = new Color('#2f4fa3');
+    const u = uv().x;
+    const v = uv().y;
+    // stripes: index 0 is the top one, and even ones are red
+    const stripe = floor(float(1).sub(v).mul(12.999)).mod(2.0);
+    const stripeCol = mix(vec3(red.r, red.g, red.b), vec3(white.r, white.g, white.b), stripe);
+    // canton: left 40% of the width, top 7 of 13 stripes
+    const cantonH = 7 / 13;
+    const inCanton = float(1)
+      .sub(step(0.4, u))
+      .mul(step(1 - cantonH, v));
+    const cu = u.div(0.4);
+    const cv = v.sub(1 - cantonH).div(cantonH);
+    // 11 columns x 9 rows; a star sits where column + row is even (6 in even rows, 5 in odd rows)
+    const colx = cu.mul(11.0);
+    const rowy = cv.mul(9.0);
+    const parity = floor(colx).add(floor(rowy)).mod(2.0);
+    const p = vec2(fract(colx).sub(0.5).mul(1.15), fract(rowy).sub(0.5));
+    const ang = atan(p.y, p.x);
+    // five-pointed star: radius swells to the points
+    const lobes = abs(cos(ang.sub(Math.PI / 2).mul(2.5)));
+    const radius = float(0.1).add(pow(lobes, 2.0).mul(0.21));
+    const star = step(length(p), radius).mul(float(1).sub(parity));
+    const cantonCol = mix(vec3(blue.r, blue.g, blue.b), vec3(white.r, white.g, white.b), star);
+    m.colorNode = mix(stripeCol, cantonCol, inCanton) as N;
+    flutter(m);
+    return m;
+  });
 }

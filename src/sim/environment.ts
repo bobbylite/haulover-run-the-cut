@@ -4,7 +4,8 @@
 import { clamp, damp, lerp, wrapAngle } from '../core/math';
 import type { Difficulty } from '../data/difficulty';
 import type { WeatherPreset } from '../data/weather';
-import { GeoGrid } from './geography';
+import type { Location } from '../locations/types';
+import { GeoGrid } from './geoGrid';
 import { makeWaveSample, type SeaState, WaveField, type WaveSample } from './waves';
 import { WindField } from './wind';
 
@@ -29,6 +30,12 @@ export class Environment {
   tide: Tide = 'ebb';
   /** Signed throat current in m/s (+ flows east / out to sea). */
   tideSpeed = 2.7;
+  /**
+   * Live multipliers a game mode can ramp over a run (Montauk: the wind and the tide build through the
+   * day). They scale the *targets* the sea blends towards, so 1 leaves every other game untouched.
+   */
+  windGain = 1;
+  tideGain = 1;
   weather!: WeatherPreset;
   difficulty!: Difficulty;
   /** Current sea-state parameters (post difficulty scaling). */
@@ -42,8 +49,11 @@ export class Environment {
   } | null = null;
   private windFrom = 90;
 
-  constructor(geo?: GeoGrid) {
-    this.geo = geo ?? GeoGrid.bake();
+  constructor(
+    readonly loc: Location,
+    geo?: GeoGrid,
+  ) {
+    this.geo = geo ?? GeoGrid.bake(loc);
     this.waves = new WaveField(this.geo);
   }
 
@@ -120,8 +130,8 @@ export class Environment {
     };
     s.swellHeight = mix(s.swellHeight, g.swellHeight);
     s.swellLength = mix(s.swellLength, g.swellLength);
-    s.chopHeight = mix(s.chopHeight, g.chopHeight);
-    s.hay = mix(s.hay, g.hay);
+    s.chopHeight = mix(s.chopHeight, g.chopHeight * this.windGain);
+    s.hay = mix(s.hay, g.hay * this.tideGain);
     s.sharpness = mix(s.sharpness, g.sharpness);
     s.swellDir += wrapAngle(g.swellDir - s.swellDir) * a;
     s.chopDir += wrapAngle(g.chopDir - s.chopDir) * a;
@@ -131,10 +141,10 @@ export class Environment {
       Math.abs(wrapAngle(g.chopDir - s.chopDir)) > 1e-3
     )
       moving = true;
-    this.tideSpeed = mix(this.tideSpeed, t.tide);
+    this.tideSpeed = mix(this.tideSpeed, t.tide * this.tideGain);
     this.windFrom += (((t.wind.from - this.windFrom + 540) % 360) - 180) * a;
     this.wind.setFromCompass(
-      mix(this.wind.speed, t.wind.speed),
+      mix(this.wind.speed, t.wind.speed * this.windGain),
       this.windFrom,
       mix(this.wind.gust, t.wind.gust),
     );

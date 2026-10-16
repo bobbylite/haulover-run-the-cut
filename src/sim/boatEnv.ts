@@ -2,7 +2,6 @@
 
 import type { BoatEnv } from './boat';
 import type { Environment } from './environment';
-import { hardNormal, hardSDF } from './geography';
 
 /** Moving hard obstacles (other vessels) as circles; filled in by the traffic system each frame. */
 export class DynamicObstacles {
@@ -25,6 +24,7 @@ export class DynamicObstacles {
 }
 
 export function makeBoatEnv(env: Environment, dyn?: DynamicObstacles): BoatEnv {
+  const { hardSDF, hardNormal } = env.loc.fields;
   const m = { s: 0, c: 0, h: 0 };
   return {
     get time() {
@@ -71,5 +71,6 @@ export function makeBoatEnv(env: Environment, dyn?: DynamicObstacles): BoatEnv {
       env.waves.modulation(x, z, m);
       return m.c * env.sea.chopHeight + m.h * 0.7;
     },
+    axisAt: (x, z, out) => env.waves.axisAt(x, z, out),
   };
 }

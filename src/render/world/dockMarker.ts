@@ -16,7 +16,7 @@ import {
   vec4,
 } from 'three/tsl';
 import { DoubleSide, Mesh, NodeMaterial, PlaneGeometry } from 'three/webgpu';
-import { SLIP } from '../../sim/geography';
+import type { SlipBerth } from '../../locations/types';
 import { shared } from '../shared';
 
 type N = any;
@@ -28,9 +28,9 @@ export class DockMarker {
   private readonly uBerthLen = uniform(0.2);
   private readonly ok = { v: 0 };
 
-  constructor() {
-    const L = SLIP.x1 - SLIP.x0 + 14;
-    const Wd = SLIP.half * 2;
+  constructor(private readonly berth: SlipBerth) {
+    const L = this.berth.x1 - this.berth.x0 + 14;
+    const Wd = this.berth.half * 2;
     const mat = new NodeMaterial();
     mat.transparent = true;
     mat.depthWrite = false;
@@ -66,7 +66,7 @@ export class DockMarker {
       return vec4(colr, a.clamp(0.0, 0.95));
     })() as N;
     this.mesh = new Mesh(new PlaneGeometry(L, Wd).rotateX(-Math.PI / 2), mat);
-    this.mesh.position.set(SLIP.x0 + L / 2 - 6, 0.16, SLIP.z);
+    this.mesh.position.set(this.berth.x0 + L / 2 - 6, 0.16, this.berth.z);
     this.mesh.renderOrder = 3;
     this.mesh.visible = false;
     this.mesh.frustumCulled = false;
@@ -79,7 +79,7 @@ export class DockMarker {
     this.mesh.visible = visible;
     this.ok.v += ((ok ? 1 : 0) - this.ok.v) * Math.min(1, dt * 8);
     this.uOk.value = this.ok.v;
-    const L = SLIP.x1 - SLIP.x0 + 14;
+    const L = this.berth.x1 - this.berth.x0 + 14;
     const x0 = this.mesh.position.x - L / 2;
     this.uBerth.value = (berthX - x0) / L;
     this.uBerthLen.value = (boatLength * 0.5 + 0.6) / L;

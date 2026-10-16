@@ -11,8 +11,8 @@ function socialCard(): Plugin {
       const tags = [
         `<link rel="canonical" href="${site}" />`,
         '<meta property="og:type" content="website" />',
-        '<meta property="og:title" content="HAULOVER — Run the Cut" />',
-        '<meta property="og:description" content="A pastel, physics-driven boating game set in Haulover Inlet, Miami." />',
+        '<meta property="og:title" content="Run the Cut" />',
+        '<meta property="og:description" content="Pastel, physics-driven boating games: run Haulover Inlet in Miami, or find the bait and hook a tuna off Montauk." />',
         `<meta property="og:url" content="${site}" />`,
         `<meta property="og:image" content="${site}og.jpg" />`,
         '<meta name="twitter:card" content="summary_large_image" />',

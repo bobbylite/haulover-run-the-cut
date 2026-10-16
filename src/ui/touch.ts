@@ -3,10 +3,19 @@
 
 import type { Game } from '../game/game';
 
+/** A button a game mode adds to the touch controls. */
+export interface TouchButton {
+  label: string;
+  /** Held down: called with true on press, false on release. */
+  hold?: (on: boolean) => void;
+  /** Tapped. */
+  tap?: () => void;
+}
+
 export const isTouchDevice = (): boolean =>
   typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
-export function mountTouchControls(root: HTMLElement, game: Game): void {
+export function mountTouchControls(root: HTMLElement, game: Game, extra: TouchButton[] = []): void {
   if (!isTouchDevice()) return;
   root.classList.add('touch-device');
   const el = document.createElement('div');
@@ -19,7 +28,8 @@ export function mountTouchControls(root: HTMLElement, game: Game): void {
       <button id="tCam">Cam</button>
       <button id="tRes">Respawn</button>
       <button id="tPause">Pause</button>
-    </div>`;
+    </div>
+    ${extra.length ? `<div class="t-btns t-extra">${extra.map((b, i) => `<button data-x="${i}">${b.label}</button>`).join('')}</div>` : ''}`;
   root.appendChild(el);
 
   const input = game.input;
@@ -93,6 +103,23 @@ export function mountTouchControls(root: HTMLElement, game: Game): void {
   tap('#tCam', () => game.cycleCamera());
   tap('#tRes', () => game.respawn());
   tap('#tPause', () => game.togglePause());
+
+  // the mode's own buttons
+  for (const [i, b] of extra.entries()) {
+    const btn = el.querySelector<HTMLElement>(`[data-x="${i}"]`) as HTMLElement;
+    if (b.hold) {
+      const set = b.hold;
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        btn.setPointerCapture(e.pointerId);
+        set(true);
+      });
+      const up = (): void => set(false);
+      btn.addEventListener('pointerup', up);
+      btn.addEventListener('pointercancel', up);
+    }
+    if (b.tap) btn.addEventListener('click', () => b.tap?.());
+  }
 
   // mirror the live lever / wheel back onto the pads
   const sync = (): void => {

@@ -10,7 +10,17 @@ export interface Controls {
   pump: boolean;
 }
 
-export type Action = 'camera' | 'reset' | 'pause' | 'hud' | 'mute' | 'photo' | 'sail' | 'quality';
+export type Action =
+  | 'camera'
+  | 'reset'
+  | 'pause'
+  | 'hud'
+  | 'mute'
+  | 'photo'
+  | 'sail'
+  | 'quality'
+  | 'lines'
+  | 'mark';
 
 const ACTIONS: Record<string, Action> = {
   KeyC: 'camera',
@@ -22,6 +32,8 @@ const ACTIONS: Record<string, Action> = {
   KeyF: 'sail',
   KeyG: 'quality',
   F2: 'photo',
+  KeyL: 'lines',
+  KeyT: 'mark',
 };
 
 export class Input {
@@ -42,6 +54,15 @@ export class Input {
   touchSteer: number | null = null;
   touchThrottle: number | null = null;
   touchPump = false;
+  /** On-screen fishing buttons: binoculars, rod pump, and the drag lever's direction (-1, 0, +1). */
+  touchBino = false;
+  touchFishPump = false;
+  touchSheet = 0;
+  /** Fishing: hold V for binoculars, hold Z (or pad B) to pump the rod. Only live while input is enabled. */
+  binoculars = false;
+  fishPump = false;
+  /** How fast Q / E move the sheet (or the fishing drag lever) per second. */
+  sheetRate = 0.32;
 
   private readonly keys = new Set<string>();
   private readonly listeners = new Map<Action, Array<() => void>>();
@@ -116,6 +137,11 @@ export class Input {
     this.zoom = clamp(this.zoom * (1 + Math.sign(e.deltaY) * 0.08), 0.55, 1.9);
   };
 
+  /** Is a key held right now (for modes with their own keys). */
+  held(...codes: string[]): boolean {
+    return this.down(...codes);
+  }
+
   private down(...codes: string[]): boolean {
     return codes.some((c) => this.keys.has(c));
   }
@@ -165,17 +191,25 @@ export class Input {
       this.steerRaw += (target - this.steerRaw) * damp(rate, dt);
       this.steer = this.steerRaw;
       // sail sheet
-      if (this.down('KeyQ')) this.sheet = clamp(this.sheet - 0.32 * dt, 0, 1);
-      if (this.down('KeyE')) this.sheet = clamp(this.sheet + 0.32 * dt, 0, 1);
+      if (this.down('KeyQ')) this.sheet = clamp(this.sheet - this.sheetRate * dt, 0, 1);
+      if (this.down('KeyE')) this.sheet = clamp(this.sheet + this.sheetRate * dt, 0, 1);
       if (pad) {
-        if (pad.buttons[4]?.pressed) this.sheet = clamp(this.sheet - 0.32 * dt, 0, 1);
-        if (pad.buttons[5]?.pressed) this.sheet = clamp(this.sheet + 0.32 * dt, 0, 1);
+        if (pad.buttons[4]?.pressed) this.sheet = clamp(this.sheet - this.sheetRate * dt, 0, 1);
+        if (pad.buttons[5]?.pressed) this.sheet = clamp(this.sheet + this.sheetRate * dt, 0, 1);
       }
+      if (this.touchSheet) this.sheet = clamp(this.sheet + this.touchSheet * this.sheetRate * dt, 0, 1);
+      this.binoculars = this.down('KeyV') || this.touchBino;
+      this.fishPump = this.down('KeyZ') || !!pad?.buttons[1]?.pressed || this.touchFishPump;
       this.pump =
         this.down('KeyB', 'ControlLeft', 'ControlRight') || !!pad?.buttons[0]?.pressed || this.touchPump;
     } else {
       this.steer += (0 - this.steer) * damp(6, dt);
       this.pump = false;
+      this.binoculars = false;
+      this.fishPump = false;
+      this.touchBino = false;
+      this.touchFishPump = false;
+      this.touchSheet = 0;
       this.touchSteer = null;
     }
 
