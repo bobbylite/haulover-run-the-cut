@@ -130,6 +130,8 @@ export class FishMode implements GameMode {
   readonly trace: number[] = [];
   seed = 1;
   binoculars = false;
+  /** An agent holding the binoculars up (see agentAct). */
+  private agentBino = false;
   /** Dev and test: a pilot's hands on the drag lever and the pump, in place of the keyboard. */
   override: { drag?: number; pump?: boolean } | null = null;
 
@@ -418,7 +420,7 @@ export class FishMode implements GameMode {
     const h = this.host;
     const input = h.input;
     // binoculars: hold V; the lens narrows and the view comes up to the helm
-    const bino = input.binoculars && !this.fight;
+    const bino = (input.binoculars || this.agentBino) && !this.fight;
     if (bino !== this.binoculars) {
       this.binoculars = bino;
       if (bino) {
@@ -876,6 +878,86 @@ export class FishMode implements GameMode {
       }
     }
     return best;
+  }
+
+  // ---- agents ----------------------------------------------------------------------------------------
+
+  /** What a captain can know: the stage, the clock, the signs seen, the lines, and the fight. `cheat` adds the fish. */
+  agentState(cheat: boolean): Record<string, unknown> {
+    const f = this.fight;
+    const w = f?.warning;
+    const out: Record<string, unknown> = {
+      stage: this.phaseName,
+      daylightLeftS: Math.round(this.daylightLeft),
+      strikes: this.strikes,
+      lost: this.lost,
+      tangles: this.tangles,
+      lastLoss: this.lastLoss,
+      stwKn: +(Math.max(0, this.host.player.speed) * KNOTS).toFixed(1),
+      troll: { windowKn: [4.5, 7.5], idealKn: 6.1 },
+      rods: this.tackle.rods.map((r) => ({ rod: r.spec.label, state: r.state })),
+      sightings: [...this.sightings.values()].map((s) => ({
+        kind: s.kind,
+        x: Math.round(s.x),
+        z: Math.round(s.z),
+        ageS: Math.round(this.elapsed - s.t),
+      })),
+      marks: this.marks.map((m) => ({ x: Math.round(m.x), z: Math.round(m.z) })),
+      binoculars: this.binoculars,
+      fight: f
+        ? {
+            species: f.species.name,
+            kg: f.kg,
+            mood: f.mood,
+            tension: +f.T.toFixed(2),
+            dragSetting: +f.td.toFixed(2),
+            sweetZone: [0.3, 0.85],
+            lineOutM: Math.round(f.L),
+            distM: Math.round(f.dist),
+            bearingFromAsternDeg: Math.round((f.theta * 180) / Math.PI),
+            stamina: +f.stam.toFixed(2),
+            crewFatigue: +f.fatigue.toFixed(2),
+            reelMs: +f.reel.toFixed(1),
+            hint: f.hint,
+            warning: w
+              ? {
+                  mood: w.mood,
+                  headingDeg: Math.round(
+                    ((Math.atan2(Math.cos(w.dir), -Math.sin(w.dir)) * 180) / Math.PI + 360) % 360,
+                  ),
+                }
+              : null,
+          }
+        : null,
+    };
+    if (cheat) {
+      out.schools = this.world.schools.map((s) => ({
+        id: s.id,
+        x: Math.round(s.x),
+        z: Math.round(s.z),
+        radiusM: Math.round(s.radius),
+        depthM: Math.round(s.depth),
+        feeding: +s.feeding.toFixed(2),
+        surface: s.surface,
+        spooked: s.spooked > 0,
+        tuna: s.tuna
+          .filter((t) => !t.gone)
+          .map((t) => ({ species: t.species.name, kg: t.kg, depthM: Math.round(t.depth) })),
+      }));
+    }
+    return out;
+  }
+
+  /** `{lines: 'out'|'in'|'toggle', mark: true, drag: 0..1, pump: bool, binoculars: bool}` */
+  agentAct(a: Record<string, unknown>): void {
+    const h = this.host;
+    if (a.lines === 'toggle') this.toggleLines();
+    else if (a.lines === 'out' && this.tackle.linesOut === 0 && this.tackle.tangled === 0) this.toggleLines();
+    else if (a.lines === 'in' && (this.tackle.linesOut > 0 || this.tackle.tangled > 0)) this.toggleLines();
+    if (a.mark) this.dropMark();
+    if (typeof a.drag === 'number') h.input.sheet = Math.max(0, Math.min(1, a.drag));
+    if (typeof a.pump === 'boolean') this.override = { ...this.override, pump: a.pump };
+    if (typeof a.binoculars === 'boolean') this.agentBino = a.binoculars;
   }
 
   /** Dev: hook a fish right now (for screenshots and tests). */

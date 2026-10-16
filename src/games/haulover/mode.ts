@@ -401,6 +401,45 @@ export class HaulMode implements GameMode {
     );
   }
 
+  // ---- agents ----------------------------------------------------------------------------------------
+
+  agentState(): Record<string, unknown> {
+    const g = this.course.gates[Math.min(this.nextGate, this.course.gates.length - 1)];
+    const ds = this.docking.active ? this.docking.status : null;
+    return {
+      route: this.host.cfg.route,
+      gates: this.course.gates.length,
+      gatesPassed: Math.min(this.nextGate, this.course.gates.length),
+      nextGate: g
+        ? {
+            label: g.label,
+            kind: g.kind,
+            x: Math.round(g.x),
+            z: Math.round(g.z),
+            nx: +g.nx.toFixed(3),
+            nz: +g.nz.toFixed(3),
+            half: g.half,
+          }
+        : null,
+      timeLeftS: Math.round(
+        this.docking.active ? 0 : Math.max(0, this.runLimit() - (this.elapsed + this.penalty)),
+      ),
+      penaltyS: Math.round(this.penalty),
+      docking: ds
+        ? {
+            speedKn: +ds.speedKn.toFixed(1),
+            alignDeg: Math.round(ds.alignDeg),
+            distM: Math.round(ds.dist),
+            clearanceM: +ds.clearance.toFixed(1),
+            speedOk: ds.speedOk,
+            alignOk: ds.alignOk,
+            posOk: ds.posOk,
+            timeLeftS: Math.round(ds.timeLeft),
+          }
+        : null,
+    };
+  }
+
   // ---- HUD -----------------------------------------------------------------------------------------
 
   fillHud(h: HudState): void {

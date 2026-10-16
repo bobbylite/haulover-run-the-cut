@@ -112,7 +112,7 @@ A gamepad works too (stick steer, triggers throttle, A pumps, X camera). On touc
 throttle lever and buttons appear during a run.
 
 URL parameters (handy for demos and testing): `?boat=gofast&weather=squall&tide=ebb&difficulty=captain&route=inbound`,
-`route=full|outbound|inbound`, `quality=low|medium|high`, for Montauk `game=montauk&weather=m-dawn|m-peach|m-dusk|m-gale&seed=7` (`seed` fixes where the fish are), `auto&go&skill=captain|idle|keepGoing|powerAway&cruise=0.5` for the scripted captain,, `webgl` to force the fallback renderer, `debug` for a telemetry overlay, `noui`, and `game=haulover` to skip the title screen (any of the original launch parameters also goes straight to Haulover).
+`route=full|outbound|inbound`, `quality=low|medium|high`, for Montauk `game=montauk&weather=m-dawn|m-peach|m-dusk|m-gale&seed=7` (`seed` fixes where the fish are), `auto&go&skill=captain|idle|keepGoing|powerAway&cruise=0.5` for the scripted captain,, `webgl` to force the fallback renderer, `debug` for a telemetry overlay, `noui`, `agent` (mounts the JSON agent API), and `game=haulover` to skip the title screen (any of the original launch parameters also goes straight to Haulover).
 
 ## How it works
 
@@ -194,6 +194,15 @@ and prints the outcome, which is how the difficulty tiers were balanced.
 (`node scripts/shot.mjs --url http://127.0.0.1:5173/?auto&go --out shot.png`), and `scripts/touch-test.mjs`
 exercises the touch layout in a phone-sized viewport. `?auto` hands the helm to the autopilot.
 
+### Working on it with AI agents
+
+`AGENTS.md` is the contract for any coding agent (Claude Code reads it through `CLAUDE.md`): commands, a map of the
+code, conventions, gotchas and the hard rules. Three skills in `.claude/skills/` hold the know-how:
+**`pastel-art-style`** (the art direction, palette and recipes), **`playtest-and-verify`** (gates, screenshots,
+headless bots) and **`add-game-mode`** (the Location + GameMode pattern, for Nantucket and beyond). `npm run check`
+is the one-command gate, and `?game=<id>&agent` mounts `window.__agent`, a deterministic JSON observation/action
+interface so an agent can *play* the game (`scripts/agent-demo.mjs` is a worked loop).
+
 ### Project layout
 
 ```
@@ -208,6 +217,7 @@ src/
   render/    renderer, water, sky, wake, post, FX, boat builders (a location supplies its own terrain and scenery)
   audio/     procedural WebAudio engine + generative music
   ui/        the shell UI: loading, shared menu sections, HUD dials, pause/results, touch controls
+  dev/       the agent API (`window.__agent`)
 tests/       vitest: physics calibration, balance, wave attack, water & damage, sailing, vessels, locations, shell, docking, scoring, traffic
 ```
 
