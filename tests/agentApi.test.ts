@@ -24,7 +24,14 @@ function stubGame(mode: Record<string, unknown>): Game {
   return {
     phase: 'playing',
     clock: 12.3456,
-    cfg: { boat: 'console', weather: 'm-dawn', tide: 'ebb', difficulty: 'weekender', route: 'full' },
+    cfg: {
+      boat: 'console',
+      weather: 'm-dawn',
+      tide: 'ebb',
+      difficulty: 'weekender',
+      route: 'full',
+      level: '',
+    },
     player,
     hud,
     toasts: [1, 2, 3, 4, 5].map((i) => ({ id: i, text: `toast ${i}`, tone: 'info', ttl: 1 })),

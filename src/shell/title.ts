@@ -7,7 +7,7 @@ const fishIcon = (): string =>
   `<svg viewBox="0 0 64 34" fill="none"><path d="M2 31c4-3 8 0 12-2s8 0 12-2 8 0 12-2 8 0 12-2 8 0 10-1" stroke="#7fd9e0" stroke-width="2" stroke-linecap="round" fill="none" opacity=".9"/><path d="M8 16c8-9 24-9 34 0-10 9-26 9-34 0Z" fill="currentColor"/><path d="M42 16l14-8v16Z" fill="currentColor"/><circle cx="16" cy="14" r="1.8" fill="#fff"/><path d="M26 11c2 3 2 7 0 10" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".7"/></svg>`;
 
 const art = (id: string): string =>
-  id === 'haulover' ? boatIcon('gofast') : id === 'montauk' ? fishIcon() : boatIcon('cruiser');
+  id === 'haulover' ? boatIcon('gofast') : id === 'montauk' ? fishIcon() : boatIcon('liner');
 
 /** Show the title screen and resolve with the game the player picks. */
 export function showTitle(parent: HTMLElement = document.body): Promise<GameEntry> {

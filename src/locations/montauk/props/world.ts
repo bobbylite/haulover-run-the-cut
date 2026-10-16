@@ -1,18 +1,19 @@
 // Everything that dresses the scene around Montauk's water.
 
 import { Group } from 'three/webgpu';
+import { AmbientGulls } from '../../../render/ambientGulls';
+import { Buoys } from '../../../render/buoys';
 import type { Quality } from '../../../render/renderWorld';
 import type { Environment } from '../../../sim/environment';
 import type { LocationProps, WildlifeInput } from '../../types';
-import { Buoys } from './buoys';
-import { AmbientGulls } from './gulls';
+import { BUOYS } from '../geography';
 import { Lighthouse } from './lighthouse';
 import { buildShore } from './shore';
 
 export class MontaukProps implements LocationProps {
   readonly group = new Group();
   private readonly lighthouse = new Lighthouse();
-  private readonly buoys = new Buoys();
+  private readonly buoys = new Buoys(BUOYS);
   private readonly gulls: AmbientGulls;
   readonly wildlife: { update(dt: number, inp: WildlifeInput): void };
 

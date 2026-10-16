@@ -106,6 +106,36 @@ export function hullMaterial(inner: Color): ToonMaterial {
   return m;
 }
 
+/**
+ * A band of windows for a ship's side or a wheelhouse: `n` panes along the long axis of a plain box (uv.x runs
+ * along it), pale frames between them, glowing at night. Unlit, so the narrow strip stays crisp at distance.
+ */
+export function windowBand(
+  n: number,
+  frame = '#f4f1ee',
+  glassHex = '#2c4666',
+  lit = '#ffe9b0',
+): MeshBasicNodeMaterial {
+  const key = `win:${n}:${frame}:${glassHex}:${lit}`;
+  const hit = bandCache.get(key);
+  if (hit) return hit;
+  const m = new MeshBasicNodeMaterial();
+  const f = new Color(frame);
+  const g = new Color(glassHex);
+  const l = new Color(lit);
+  const u: N = fract(uv().x.mul(n));
+  const v: N = uv().y;
+  const pane: N = smoothstep(0.1, 0.16, u)
+    .mul(float(1).sub(smoothstep(0.84, 0.9, u)))
+    .mul(smoothstep(0.16, 0.26, v))
+    .mul(float(1).sub(smoothstep(0.74, 0.84, v)));
+  const glassCol: N = mix(vec3(g.r, g.g, g.b), vec3(l.r, l.g, l.b), shared.night.mul(0.85));
+  m.colorNode = mix(vec3(f.r, f.g, f.b), glassCol, pane) as N;
+  bandCache.set(key, m);
+  return m;
+}
+const bandCache = new Map<string, MeshBasicNodeMaterial>();
+
 /** Self-lit running / string lights: dim by day, bright at night. */
 export function bulb(hex: string, nightBoost = 6): MeshBasicNodeMaterial {
   const m = new MeshBasicNodeMaterial();

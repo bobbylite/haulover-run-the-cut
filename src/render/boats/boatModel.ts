@@ -8,9 +8,12 @@ import { type ModelParts, makeCockpitWater } from './common';
 import { buildCharter, CHARTER_PAINT } from './models/charter';
 import { buildConsole, CONSOLE_PAINT } from './models/console';
 import { buildCruiser, CRUISER_PAINT } from './models/cruiser';
+import { buildFerry } from './models/ferry';
 import { buildGoFast, GOFAST_PAINT } from './models/gofast';
+import { buildLiner } from './models/liner';
 import { buildPontoon } from './models/pontoon';
 import { buildSloop } from './models/sloop';
+import { buildTug } from './models/tug';
 
 const BUILDERS: Record<BoatSpec['id'], (s: BoatSpec, paint?: any) => ModelParts> = {
   console: buildConsole,
@@ -19,6 +22,9 @@ const BUILDERS: Record<BoatSpec['id'], (s: BoatSpec, paint?: any) => ModelParts>
   charter: buildCharter,
   sloop: buildSloop,
   pontoon: buildPontoon,
+  tug: buildTug,
+  ferry: buildFerry,
+  liner: buildLiner,
 };
 
 /** Alternate liveries so the traffic on the water isn't a row of clones. Variant 0 is the hero paint. */

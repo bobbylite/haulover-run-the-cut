@@ -1,9 +1,9 @@
-// Ambient gulls for the Point: a loose flock that wheels over the bluffs and drifts out to the boat. (The
-// birds that *mean* something, working over bait, belong to the fishing game, not the place.)
+// Ambient gulls: a loose flock that wheels over the shore and drifts out to the boat. (The birds that *mean*
+// something, working over bait, belong to the fishing game, not the place.) Shared by every location.
 
-import { clamp, Rng } from '../../../core/math';
-import { BirdFlock, GULL } from '../../../render/birds';
-import type { WildlifeInput } from '../../types';
+import { clamp, Rng } from '../core/math';
+import type { WildlifeInput } from '../locations/types';
+import { BirdFlock, GULL } from './birds';
 
 interface Gull {
   cx: number;
@@ -30,7 +30,7 @@ export class AmbientGulls {
   private placed = false;
 
   constructor(count = 18) {
-    this.flock = new BirdFlock(GULL, count, 'montauk-gulls');
+    this.flock = new BirdFlock(GULL, count, 'gulls');
     for (let i = 0; i < count; i++) {
       this.gulls.push({
         cx: 0,

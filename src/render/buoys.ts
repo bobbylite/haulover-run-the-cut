@@ -1,12 +1,18 @@
-// Navigation buoys that ride the live waves: a red nun on the Point rip and a green can on the reef edge,
-// each with a flashing light, so you can find your way back to the Point in the haze.
+// Navigation buoys that ride the live waves: red nuns and green cans, each with a flashing light, so you can
+// find your way in the haze. A location says where they are.
 
 import { CylinderGeometry, Group, Quaternion, Vector3 } from 'three/webgpu';
-import { flashBulb, gel, matte, metal } from '../../../render/boats/materials';
-import { PartBuilder } from '../../../render/boats/parts';
-import type { Environment } from '../../../sim/environment';
-import { makeWaveSample } from '../../../sim/waves';
-import { BUOYS } from '../geography';
+import type { Environment } from '../sim/environment';
+import { makeWaveSample } from '../sim/waves';
+import { flashBulb, gel, matte, metal } from './boats/materials';
+import { PartBuilder } from './boats/parts';
+
+/** Where a buoy lies and which kind it is. */
+export interface BuoyMark {
+  x: number;
+  z: number;
+  kind: 'nun' | 'can';
+}
 
 interface Buoy {
   g: Group;
@@ -23,9 +29,9 @@ export class Buoys {
   private readonly up = new Vector3(0, 1, 0);
   private readonly n = new Vector3();
 
-  constructor() {
+  constructor(marks: readonly BuoyMark[]) {
     this.group.name = 'buoys';
-    for (const [i, b] of BUOYS.entries()) {
+    for (const [i, b] of marks.entries()) {
       const nun = b.kind === 'nun';
       const body = nun ? gel('#ff7d86', 0.4) : gel('#62d9a8', 0.4);
       const pb = new PartBuilder();

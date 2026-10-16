@@ -12,6 +12,7 @@ const cfg: GameConfig = {
   tide: 'ebb',
   difficulty: 'weekender',
   route: 'full',
+  level: '',
 };
 const blank = (): Settings => ({ quality: 'high', master: 0.8, music: true, sfx: true, hud: true });
 
@@ -51,16 +52,18 @@ describe('which game a URL asks for', () => {
 });
 
 describe('the registry', () => {
-  it('lists the three games, with Haulover and Montauk playable so far', () => {
+  it('lists the three games, all playable now', () => {
     expect(GAMES.map((g) => g.id)).toEqual(['haulover', 'montauk', 'nantucket']);
-    expect(gameById('haulover')?.status).toBe('ready');
-    expect(gameById('montauk')?.status).toBe('ready');
-    expect(gameById('nantucket')?.status).toBe('soon');
+    for (const g of GAMES) expect(g.status, g.id).toBe('ready');
     expect(gameById('nope')).toBeUndefined();
   });
 
-  it('a game that is not built refuses to load', async () => {
-    await expect(gameById('nantucket')?.load()).rejects.toThrow(/not built yet/);
+  it('every game loads its definition lazily, and ids agree with the registry', async () => {
+    for (const g of GAMES) {
+      const def = await g.load();
+      expect(def.id).toBe(g.id);
+      expect(def.location.id).toBe(g.id);
+    }
   });
 });
 
@@ -70,7 +73,13 @@ describe('per-game saves', () => {
   });
 
   it('keeps other games separate from it', () => {
-    expect(bestKey('nantucket', cfg)).toBe('nantucket:console|breeze|ebb|weekender|full');
+    // a berth-based game keys its bests by challenge, not by route
+    expect(bestKey('nantucket', { ...cfg, level: 'tiki-slip' })).toBe(
+      'nantucket:console|breeze|ebb|weekender|tiki-slip',
+    );
+    expect(bestKey('nantucket', { ...cfg, level: 'liner-east' })).not.toBe(
+      bestKey('nantucket', { ...cfg, level: 'tiki-slip' }),
+    );
     expect(bestKey('montauk', cfg)).not.toBe(bestKey('nantucket', cfg));
     expect(bestKey('montauk', cfg)).not.toBe(bestKey('haulover', cfg));
   });

@@ -63,6 +63,9 @@ export interface AgentAction {
   throttle?: number;
   /** Wheel, -1 (port) .. 1 (starboard). */
   steer?: number;
+  /** Bow / stern tunnel thrusters of a ship, -1 (to port) .. 1 (to starboard); they persist like the wheel. */
+  bow?: number;
+  stern?: number;
   /** Hold the bilge pump. */
   bilge?: boolean;
   /** Sail trim 0 (in) .. 1 (out), and hoist or drop the sails (sloop). */
@@ -167,6 +170,8 @@ export function mountAgentApi(g: Game): AgentApi {
       if (a.throttle !== undefined) next.throttle = Math.max(-0.4, Math.min(1, a.throttle));
       if (a.steer !== undefined) next.steer = Math.max(-1, Math.min(1, a.steer));
       if (a.bilge !== undefined) next.pump = a.bilge;
+      if (a.bow !== undefined) next.bow = Math.max(-1, Math.min(1, a.bow));
+      if (a.stern !== undefined) next.stern = Math.max(-1, Math.min(1, a.stern));
       if (a.sheet !== undefined) {
         g.input.sheet = Math.max(0, Math.min(1, a.sheet));
         next.sheet = g.input.sheet;
@@ -199,7 +204,7 @@ export function mountAgentApi(g: Game): AgentApi {
       return {
         version: 1,
         howTo:
-          'Open the page with ?game=<haulover|montauk>&agent[&seed=N][&noui]. start() -> act() -> step(); read observe(). ' +
+          'Open the page with ?game=<haulover|montauk|nantucket>&agent[&seed=N][&noui]. start() -> act() -> step(); read observe(). ' +
           'The sim only advances inside step()/start(). Pass {cheat:true} to see hidden state (for testing, not for play).',
         frames:
           'x east, z south (metres); headingDeg / bearings are compass degrees (0 = N, 90 = E); speeds in knots',
@@ -207,6 +212,8 @@ export function mountAgentApi(g: Game): AgentApi {
         action: {
           throttle: '-0.4..1 lever, persists',
           steer: '-1..1 wheel, persists',
+          bow: '-1..1 bow thruster (ships), persists',
+          stern: '-1..1 stern thruster (ships), persists',
           bilge: 'boolean, hold the pump',
           sheet: '0..1 sail trim (sloop)',
           sail: 'boolean, hoist / drop (sloop)',
@@ -229,6 +236,15 @@ export function mountAgentApi(g: Game): AgentApi {
             },
             observe:
               'mode.stage search|troll|fight, daylightLeftS, strikes, lost, rods[], sightings[], marks[], fight{mood,tension,drag,lineOutM,distM,bearingDeg,stamina,crew,hint,warning}; cheat adds schools[]',
+          },
+          nantucket: {
+            config:
+              'level: one of tiki-slip, hornet-moor, sunset-quay, pelican-moor, sunset-oldnorth, lady-straight, tug-slip, tug-steamship, ferry-west, ferry-east, liner-east, liner-fog (it brings its own boat)',
+            mode: {
+              tug: "'bow-port' | 'bow-stbd' | 'stern-port' | 'stern-stbd' | 'hold': call a tug (ships; limited calls)",
+            },
+            observe:
+              'mode.level, berth{id,kind,label}, target{x,z,headingDeg} (where the middle of the hull has to finish), status{distM,alongM,acrossM,speedKn,alignDeg,speedOk,alignOk,posOk,holdS,needS,clearanceM,stopDistM,bumps,timeLeftS}, tugs{left,used}, thrusters',
           },
         },
         phases: ['loading', 'menu', 'countdown', 'playing', 'paused', 'finished', 'failed'],

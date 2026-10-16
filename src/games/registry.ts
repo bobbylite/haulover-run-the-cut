@@ -1,6 +1,6 @@
 // The games on offer. Each one is loaded on demand (its own chunk) so the title screen and the first
-// paint never pay for a location they did not pick. `status: 'soon'` games show on the title screen but
-// cannot be started yet; see docs/ROADMAP.md for what is planned.
+// paint never pay for a location they did not pick. A game with `status: 'soon'` shows on the title screen but
+// cannot be started yet (none are, at the moment); see docs/ROADMAP.md for what is planned.
 
 import type { GameId, ModeDef } from '../game/mode';
 
@@ -12,8 +12,6 @@ export interface GameEntry {
   status: 'ready' | 'soon';
   load(): Promise<ModeDef>;
 }
-
-const notYet = (name: string) => () => Promise.reject(new Error(`${name} is not built yet`));
 
 export const GAMES: readonly GameEntry[] = [
   {
@@ -37,8 +35,8 @@ export const GAMES: readonly GameEntry[] = [
     title: 'Nantucket',
     place: 'Nantucket Harbor · Massachusetts',
     tagline: 'Pick a vessel and a berth, and park it. Cruise ships are the hardest.',
-    status: 'soon',
-    load: notYet('Nantucket'),
+    status: 'ready',
+    load: async () => (await import('./nantucket/mode')).NANTUCKET_GAME,
   },
 ];
 

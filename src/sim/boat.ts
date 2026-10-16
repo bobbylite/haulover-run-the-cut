@@ -30,6 +30,19 @@ export interface BoatInput {
   steer: number;
   sheet: number;
   pump: boolean;
+  /** Bow / stern tunnel thrusters, -1 (to port) .. +1 (to starboard). Ignored by hulls without them. */
+  bow?: number;
+  stern?: number;
+}
+
+/** A tug (or any outside hand) pushing on the hull: where it is made fast and the force along the hull's axes. */
+export interface TugPush {
+  /** Attachment point in the boat's spec frame (x forward, z to starboard). */
+  x: number;
+  z: number;
+  /** Force along the bow (fx) and to starboard (fz), in newtons. */
+  fx: number;
+  fz: number;
 }
 
 export interface Impact {
@@ -81,6 +94,14 @@ export class Boat {
   private throttleCmd = 0;
   private steerCmd = 0;
   private sheetCmd = 0.5;
+  /** Tunnel thrusters: commanded and actual (they spool up and down), -1..1. */
+  private bowCmd = 0;
+  private sternCmd = 0;
+  bowThr = 0;
+  sternThr = 0;
+  /** Outside pushes (tugs) applied every step; the game fills and clears this list. */
+  readonly tugs: TugPush[] = [];
+  private readonly linX: number;
 
   // read-outs
   heading = 0;
@@ -190,6 +211,7 @@ export class Boat {
 
   constructor(readonly spec: BoatSpec) {
     this.water = new BoatWater(spec);
+    this.linX = spec.linDrag ?? LIN_X;
     this.humpGain = spec.hump.gain;
     this.humpSpeed = spec.hump.speed;
     this.humpWidth = spec.hump.width;
@@ -214,6 +236,8 @@ export class Boat {
     // the impact speed a hull shrugs off: bigger, heavier-built boats are made for it
     this.toughness = spec.strength;
     this.weirOver = new Array(spec.weirs.length).fill(-1);
+    // a long hull carries many bumpers, so each one is softer: the whole side is as stiff as a small boat's
+    this.bumperScale = Math.min(1, 8 / Math.max(1, spec.bumpers.length));
     this.inertia = [spec.inertia[0], spec.inertia[1], spec.inertia[2]];
     // Hydrodynamic damping isn't modelled per point, so floor the angular damping from the hull's
     // own stiffness: roughly 20% of critical in roll, 30% in pitch (kills porpoising).
@@ -253,6 +277,8 @@ export class Boat {
     this.angVel.set(0, 0, 0);
     this.throttle = this.throttleCmd = 0;
     this.steer = this.steerCmd = 0;
+    this.bowThr = this.bowCmd = this.sternThr = this.sternCmd = 0;
+    this.tugs.length = 0;
     this.sinkT = 0;
     this.sinking = false;
     this.capsizeT = 0;
@@ -282,6 +308,8 @@ export class Boat {
     this.steerCmd = clamp(i.steer, -1, 1);
     this.sheetCmd = clamp(i.sheet, 0, 1);
     this.water.pumping = i.pump;
+    this.bowCmd = clamp(i.bow ?? 0, -1, 1);
+    this.sternCmd = clamp(i.stern ?? 0, -1, 1);
   }
 
   /** Advance the boat by `dt` seconds (internally sub-stepped). */
@@ -295,6 +323,9 @@ export class Boat {
     const target = this.steerCmd * e.steerMax * (0.35 + 0.65 * steerScale);
     this.steer += clamp(target - this.steer, -e.steerRate * dt, e.steerRate * dt);
     this.sheet += clamp(this.sheetCmd - this.sheet, -0.5 * dt, 0.5 * dt);
+    // tunnel thrusters spool up in about a second
+    this.bowThr += clamp(this.bowCmd - this.bowThr, -1.4 * dt, 1.4 * dt);
+    this.sternThr += clamp(this.sternCmd - this.sternThr, -1.4 * dt, 1.4 * dt);
 
     const n = Math.min(6, Math.max(1, Math.ceil(dt / SUB_DT)));
     const h = dt / n;
@@ -458,7 +489,7 @@ export class Boat {
 
       const wetImm = Math.min(1, imm / (s.cell * 0.35));
       const wet = Math.max(0.5, wetImm) * (1 - 0.62 * planeFrac);
-      const fdx = -(s.dragX * hf * Math.abs(ub) + (LIN_X * s.k) / this.kTotal) * ub * wet;
+      const fdx = -(s.dragX * hf * Math.abs(ub) + (this.linX * s.k) / this.kTotal) * ub * wet;
       // lateral lift stays effective on the planing strip: it saturates with very little immersion
       const wetLat = Math.min(1, imm / 0.12);
       const fdz = -(this.latLift[i]! * Math.abs(ub) + s.dragZ * spec.keel * Math.abs(wb)) * wb * wetLat;
@@ -551,6 +582,45 @@ export class Boat {
       const rud = -eng.rudder * flow * this.steer * (0.35 + 0.65 * this.propSubmerge);
       const lz2 = tlz + rud;
       this.addF(r00 * tlx + r02 * lz2, r10 * tlx + r12 * lz2, r20 * tlx + r22 * lz2, rx, ry, rz);
+      // twin screws / azimuth drives: a pure yaw couple about the hull's vertical axis (steer > 0 turns to starboard)
+      if (eng.pivot) {
+        const tq =
+          -eng.pivot * (this.steer / Math.max(0.01, eng.steerMax)) * (0.35 + 0.65 * this.propSubmerge);
+        this.tx += tq * r01;
+        this.ty += tq * r11;
+        this.tz += tq * r21;
+      }
+    }
+
+    // ---- tunnel thrusters and tug pushes (side forces at the waterline) ---------------------------------------
+    {
+      const th = spec.thrusters;
+      if (th) {
+        // a tunnel thruster loses its bite once the ship is moving through the water
+        const fade = 1 / (1 + (uf / 2.4) ** 2);
+        const side = (t: { x: number; force: number } | undefined, cmd: number): void => {
+          if (!t || Math.abs(cmd) < 1e-3) return;
+          const F = t.force * cmd * fade;
+          const lx = t.x - cgx;
+          const ly = -cgy;
+          const lz = -cgz;
+          const rx = r00 * lx + r01 * ly + r02 * lz;
+          const ry = r10 * lx + r11 * ly + r12 * lz;
+          const rz = r20 * lx + r21 * ly + r22 * lz;
+          this.addF(F * r02, F * r12, F * r22, rx, ry, rz);
+        };
+        side(th.bow, this.bowThr);
+        side(th.stern, this.sternThr);
+      }
+      for (const t of this.tugs) {
+        const lx = t.x - cgx;
+        const ly = -cgy;
+        const lz = t.z - cgz;
+        const rx = r00 * lx + r01 * ly + r02 * lz;
+        const ry = r10 * lx + r11 * ly + r12 * lz;
+        const rz = r20 * lx + r21 * ly + r22 * lz;
+        this.addF(r00 * t.fx + r02 * t.fz, r10 * t.fx + r12 * t.fz, r20 * t.fx + r22 * t.fz, rx, ry, rz);
+      }
     }
 
     // ---- running trim (bow-up when planing / climbing the hump) --------------------------------------
@@ -657,7 +727,7 @@ export class Boat {
       const vpz = vel.z + om.x * ry - om.y * rx;
       const vn = vpx * nx + vpz * nz; // negative = moving into the obstacle
       const pen = Math.min(-d, 2.2);
-      const kC = (spec.mass * 38) / 3;
+      const kC = ((spec.mass * 38) / 3) * this.bumperScale;
       const cC = 2 * 0.55 * Math.sqrt(kC * (spec.mass / 4));
       let fn = kC * pen - (vn < 0 ? cC * vn : 0);
       if (fn < 0) fn = 0;
@@ -667,7 +737,7 @@ export class Boat {
       const tl = Math.hypot(tx, tz) || 1;
       const ff = Math.min(0.25 * fn, tl * spec.mass * 0.5);
       this.addF(nx * fn - (tx / tl) * ff, 0, nz * fn - (tz / tl) * ff, rx, ry, rz);
-      if (vn < -1.0 && this.impactCool <= 0) {
+      if (vn < -this.impactMin && this.impactCool <= 0) {
         this.impacts.push({ speed: -vn, x: px, z: pz, hard: true });
         this.impactCool = 0.35;
       }
@@ -748,6 +818,9 @@ export class Boat {
   }
 
   private impactCool = 0;
+  /** Closing speed (m/s) at which a hard contact is reported; a docking game lowers it to hear every bump. */
+  impactMin = 1.0;
+  private bumperScale = 1;
   private readonly humpGain: number;
   private readonly humpSpeed: number;
   private readonly humpWidth: number;

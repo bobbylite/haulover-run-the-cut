@@ -4,14 +4,14 @@
   <strong>Physics-driven boating games on one pastel engine.</strong><br />
   <b>Haulover</b> — run the inlet, survive the sea, dock in the marina. &nbsp;·&nbsp;
   <b>Montauk</b> — find the bait, troll a spread, hook a tuna and keep it on. &nbsp;·&nbsp;
-  <b>Nantucket</b> — the docking challenge <em>(coming soon)</em>.
+  <b>Nantucket</b> — park it: slips, wharves and moorings, up to a cruise ship.
 </p>
 
 <p align="center">
   <img src="docs/montauk-trolling.png" alt="A boat running the Cut at golden hour" width="100%" />
 </p>
 
-A title screen picks the game; each has its own menu, rules, scoring and best scores (`?game=haulover|montauk`).
+A title screen picks the game; each has its own menu, rules, scoring and best scores (`?game=haulover|montauk|nantucket`).
 
 ### Haulover
 
@@ -35,6 +35,26 @@ the fish if you do not captain properly.
 | **Wind against tide** | Every Montauk sky blows an onshore easterly against the east-setting ebb, which stands the rips up (Cotton-Candy Dawn, Peach Fog Bank, Lilac Dusk, Rosé Nor'easter). Both build through the day (and the sky drifts to dusk), the boat's windage pushes it one way and the tide pushes it and the fish another, and the 45° wave rule from Haulover applies on the run out. The tide menu offers ebb or flood: there is no slack water here. |
 | **Tiers** | Deckhand, Mate, Captain, Montauk Legend: how much daylight you get, how many schools there are and how many hold tuna, how often they show on the surface, how hard they fight (bluefin get likelier), how good the crew is, how fast the drag slips, how fast the sea builds, and how much water the boat can take. |
 | **Scoring** | Weight × species value, a clean-fight bonus, daylight to spare, hull in one piece, minus lost fish and tangles, times the tier. One star for a tuna on the deck, three for a big clean fight. |
+
+### Nantucket
+
+<p align="center"><img src="docs/nantucket-tugs.jpg" alt="Two tugs leaning on the island ferry as it comes onto Steamship Wharf" width="100%" /></p>
+
+*Put it there, cleanly.* Twelve berthing challenges in a stylised Nantucket Harbor: a pontoon in a slip at Easy
+Street, the Hornet on a mooring ball, a cruiser on the town quay, the tug round the end of Steamship Wharf, the
+island ferry in a crosswind, and a **116 m cruise ship** that has to be walked in against the wharf. A glowing
+footprint on the water shows where the middle of your hull has to end up and which way it must point; bring it
+there slowly and squarely, hold it for a couple of seconds, and you are berthed.
+
+| | |
+|---|---|
+| **Berths** | A **slip** (between finger piers, bow-in or stern-in), a **wharf** (lie alongside, parallel to the face), a **mooring** (the *bow* has to reach the ball, slowly enough for the crew to catch the pennant). Each finish has its own tolerances in the berth's frame (along it, off it, angle, speed) and they scale with the hull: a ship gets more metres of slack but fewer degrees. |
+| **Vessels** | Nine hulls on one ladder: the Tiki Barge, Hornet, Pelican, Sunset 42 and Montauk Lady, then the **Muskeget 64 tug** (twin screws that spin her on the spot), the **Islander 150 ferry** (bow and stern thrusters, a lot of windage) and the **Grey Lady 380 liner** (7,000 tonnes of momentum, 330 kN of bow thruster). They run on the same rigid-body physics as the small boats; nothing is faked. |
+| **Ship handling** | `Q`/`E` bow thruster, `Z`/`V` stern thruster, `A`/`D` the twin screws (they turn a ship on the spot). Thrusters lose their bite once the ship is moving. The radar shows the set of the tide, a ghost of your berth, your hull and velocity, the shallows *for your keel*, and a dot where **full astern would stop you**. |
+| **Tugs** | Big ships get a budget of calls: `1`/`2` the bow tug pushes to port / starboard, `3`/`4` the stern tug, `5` holds her (brakes everything). A tug nose in, leans for seven seconds and backs off. A few calls are free; more cost points and stars. |
+| **The harbour** | The tide funnels through the 220 m mouth between Brant Point and Coatue and eases into the bowl; along the town it sets you along or across the wharf faces; the basin is slack. Five skies of its own: Harbor Gold, Sea Breeze (a south-wester that leans on every wharf), Grey Lady Fog, Nor'easter Gale and Moonlit Wharf. The flats off Coatue ground a deep hull. |
+| **Levels and stars** | Five tiers (small craft, cruisers and sail, work boats, the ferry, the ship). Earn a star on two levels of a tier to open the next. Three stars: no bumps, a sound hull, an exact berth, time in hand and no more than the free tug calls. A harbour chart in the menu has a pin on every challenge. |
+| **Difficulty** | Dockhand, Mate, Captain, Harbor Pilot: stronger tide and wind, a shorter clock, busier water and fewer tug calls. |
 
 Built with **three.js WebGPU + TSL**, a hand-written boat physics engine and a fully procedural world. Waves,
 hulls, palms, clouds, engine notes and music are generated at runtime—no model, texture or audio files required.
@@ -100,6 +120,7 @@ automatically. Phones work in landscape with on-screen controls; the game is des
 | `Q` / `E` | Trim the sheet in / out (sloop): keep the knob on the green tick. *Montauk:* ease / tighten the drag |
 | `F` | Hoist / drop sails (sloop) |
 | `L` / `V` / `T` / `Z` | *Montauk:* set or reel in the lines / hold for binoculars / mark a spot / hold to pump the rod |
+| `Q` / `E`, `Z` / `V`, `1`–`5` | *Nantucket, ships:* bow thruster, stern thruster, call the tugs (bow ◀ ▶, stern ◀ ▶, hold) |
 | `C` | Camera: chase / helm / orbit (and a stern view when there are lines out or a fish on) |
 | `R` | Respawn at the last gate (+20 s) |
 | `Esc` / `P` | Pause |
@@ -112,7 +133,7 @@ A gamepad works too (stick steer, triggers throttle, A pumps, X camera). On touc
 throttle lever and buttons appear during a run.
 
 URL parameters (handy for demos and testing): `?boat=gofast&weather=squall&tide=ebb&difficulty=captain&route=inbound`,
-`route=full|outbound|inbound`, `quality=low|medium|high`, for Montauk `game=montauk&weather=m-dawn|m-peach|m-dusk|m-gale&seed=7` (`seed` fixes where the fish are), `auto&go&skill=captain|idle|keepGoing|powerAway&cruise=0.5` for the scripted captain,, `webgl` to force the fallback renderer, `debug` for a telemetry overlay, `noui`, `agent` (mounts the JSON agent API), and `game=haulover` to skip the title screen (any of the original launch parameters also goes straight to Haulover).
+`route=full|outbound|inbound`, `quality=low|medium|high`, for Montauk `game=montauk&weather=m-dawn|m-peach|m-dusk|m-gale&seed=7` (`seed` fixes where the fish are), `auto&go&skill=captain|idle|keepGoing|powerAway&cruise=0.5` for the scripted captain,, for Nantucket `game=nantucket&level=liner-east&weather=n-golden|n-breeze|n-fog|n-nor|n-moon` (`auto&go&cruise=0.7` puts the harbour pilot at the helm), `webgl` to force the fallback renderer, `debug` for a telemetry overlay, `noui`, `agent` (mounts the JSON agent API), and `game=haulover` to skip the title screen (any of the original launch parameters also goes straight to Haulover).
 
 ## How it works
 
@@ -187,6 +208,12 @@ and `scripts/fish-fights.mjs` fights many fish back to back on the real boat and
 The fishing sims (`sim/fishing/`) are pure and seeded and are covered by `tests/fishing.*.test.ts` and
 `tests/montauk.*.test.ts`, including scripted good and bad captains.
 
+`scripts/dock-run.mjs` berths Nantucket challenges the same way (`--level liner-east --weather n-fog --difficulty captain`, or
+`--all`). The berth rules (`game/berthing.ts`, `berthScore.ts`), the tugs (`sim/tugs.ts`) and the harbour pilot
+(`game/harborPilot.ts`) are pure and are covered by `tests/berthing.test.ts`, `tests/ships.sim.test.ts`,
+`tests/nantucket.location.test.ts` and the `tests/nantucket.dock.*.test.ts` files, which run the pilot through every level
+on the real boat and sea (so a level that cannot be parked fails the build).
+
 `scripts/sim-run.mjs` plays a whole game headlessly in the real page (autopilot at the helm, time fast-forwarded)
 and prints the outcome, which is how the difficulty tiers were balanced.
 
@@ -208,12 +235,12 @@ interface so an agent can *play* the game (`scripts/agent-demo.mjs` is a worked 
 ```
 src/
   game/      the engine host (`Game`), the `GameMode` seam, camera, input, autopilot, scoring, saves
-  games/     one folder per game (rules + UI): haulover/, montauk/ (fish mode, sonar, chart, visuals, dev bot), plus the registry that loads them on demand
+  games/     one folder per game (rules + UI): haulover/, montauk/ (fish mode, sonar, chart, visuals, dev bot), nantucket/ (levels, berth mode, radar, harbour chart, tug visuals, dev pilot), plus the registry that loads them on demand
   shell/     the title screen
   sim/       geoGrid, waves, wind, environment, hazards, boat + water physics, sails (no rendering)
   sim/fishing/  the fish world, trolling tackle and the fight (pure, seeded, no rendering)
-  locations/ one folder per place: sea fields, harbour, terrain, scenery, route (haulover/, montauk/)
-  data/      boats, weather presets, difficulties
+  locations/ one folder per place: sea fields, harbour, terrain, scenery, route (haulover/, montauk/, nantucket/)
+  data/      boats and ships (hull.ts is the shared hull generator), weather presets, difficulties
   render/    renderer, water, sky, wake, post, FX, boat builders (a location supplies its own terrain and scenery)
   audio/     procedural WebAudio engine + generative music
   ui/        the shell UI: loading, shared menu sections, HUD dials, pause/results, touch controls
@@ -235,8 +262,8 @@ Social-card tags (`og:image`, etc.) are injected automatically with the real URL
 
 ## Roadmap
 
-Haulover and Montauk are playable; **Nantucket** (the docking challenge, up to cruise ships) is next. The plan, milestones and progress log live in
-[docs/ROADMAP.md](docs/ROADMAP.md).
+All three games are playable. What is next (Nantucket's ferry schedule and a mega-yacht, Montauk polish, shared progression and a
+deploy of all three) is in [docs/ROADMAP.md](docs/ROADMAP.md), together with the milestones and the progress log.
 
 ## License
 

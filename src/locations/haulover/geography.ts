@@ -173,7 +173,7 @@ export const BASIN_LOOP = { x: -494, z: 192, rx: 30, rz: 36 } as const;
 /** Boats tied up in the slips (the target slip is left free). */
 export const MOORED: Moored[] = [];
 
-const KIND: Record<Moored['kind'], { length: number; beam: number }> = {
+const KIND: Record<'console' | 'gofast' | 'cruiser', { length: number; beam: number }> = {
   console: { length: 7.4, beam: 2.5 },
   gofast: { length: 10.2, beam: 2.35 },
   cruiser: { length: 13, beam: 4.2 },
@@ -196,7 +196,7 @@ const KIND: Record<Moored['kind'], { length: number; beam: number }> = {
         continue;
       }
       const roll = rng.next();
-      const kind: Moored['kind'] =
+      const kind: 'console' | 'gofast' | 'cruiser' =
         roll < 0.16 && berth === 0 ? 'cruiser' : roll < 0.34 ? 'gofast' : 'console';
       const k = KIND[kind];
       const cx = x - k.length / 2;

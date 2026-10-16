@@ -37,6 +37,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   tide: 'ebb',
   difficulty: 'weekender',
   route: 'full',
+  level: '',
 };
 
 type Listener<T> = (v: T) => void;
@@ -123,7 +124,7 @@ export class Game {
     const tick = () => new Promise<void>((r) => requestAnimationFrame(() => setTimeout(r, 0)));
     const q = new URLSearchParams(location.search);
     const cfgQ: Partial<GameConfig> = {};
-    for (const k of ['boat', 'weather', 'tide', 'difficulty', 'route'] as const) {
+    for (const k of ['boat', 'weather', 'tide', 'difficulty', 'route', 'level'] as const) {
       const v = q.get(k);
       if (v) (cfgQ as Record<string, string>)[k] = v;
     }

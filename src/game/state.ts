@@ -1,17 +1,20 @@
 // Types shared between the game core and the UI.
 
 import type { Tide } from '../sim/environment';
+import type { BerthStatus } from './berthing';
 import type { Route } from './course';
 import type { DockStatus } from './docking';
 
 export type Phase = 'loading' | 'menu' | 'countdown' | 'playing' | 'paused' | 'finished' | 'failed';
 
 export interface GameConfig {
-  boat: 'console' | 'gofast' | 'cruiser' | 'charter' | 'sloop' | 'pontoon';
+  boat: 'console' | 'gofast' | 'cruiser' | 'charter' | 'sloop' | 'pontoon' | 'tug' | 'ferry' | 'liner';
   weather: string;
   tide: Tide;
   difficulty: string;
   route: Route;
+  /** The challenge picked in a berth-based game (Nantucket); empty elsewhere. */
+  level: string;
 }
 
 export interface SailHud {
@@ -89,6 +92,8 @@ export interface HudState {
   sail: SailHud | null;
   /** Docking challenge status (null until the Marina Entrance gate is crossed). */
   dock: DockStatus | null;
+  /** Berthing status in Nantucket (null until the run is under way). */
+  berth: BerthStatus | null;
   /** Seconds left before the run clock expires (docking has its own timer). */
   timeLeft: number;
   /** Seconds of fouled prop remaining. */
@@ -169,6 +174,31 @@ export interface ResultState {
   } | null;
   /** Fishing summary (Montauk). */
   fish?: CatchResult | null;
+  /** Berthing summary (Nantucket). */
+  berth?: BerthResult | null;
+}
+
+/** How a berthing attempt came out (Nantucket). */
+export interface BerthResult {
+  docked: boolean;
+  level: string;
+  levelName: string;
+  berth: string;
+  kind: 'slip' | 'alongside' | 'mooring';
+  /** Seconds taken, and the finish error. */
+  time: number;
+  alongM: number;
+  acrossM: number;
+  alignDeg: number;
+  speedKn: number;
+  touches: number;
+  tugCalls: number;
+  tugFree: number;
+  /** Score parts (label, points) for the breakdown. */
+  parts: { label: string; pts: number }[];
+  /** Whether this beat the stars already earned on the level, and what unlocked. */
+  newStars: boolean;
+  unlocked: string | null;
 }
 
 export const emptyHud = (): HudState => ({
@@ -207,6 +237,7 @@ export const emptyHud = (): HudState => ({
   countdown: 0,
   sail: null,
   dock: null,
+  berth: null,
   timeLeft: 0,
   foul: 0,
   warning: null,
