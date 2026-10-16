@@ -317,6 +317,7 @@ sonar, fight). Easy to swap — M3 and M4 only depend on M1–M2.
 | 2026-10-16 | Each wharf's approach road ends at a "mouth" (200 m back, 34 m off the face) and the last stretch is a shallow diagonal. The fairway is dredged along the ship's berth. | A pilot that cuts waypoint corners, or a 5.2 m keel on a 5 m bowl, groundes or hits things; the road, the depth and the test pilot were fixed together. |
 | 2026-10-16 | Level clocks are ~1.5x the pilot's time at the middle difficulty (`tests/nantucket.dock.*` prove each level docks inside it). Captain and Harbor Pilot shorten the clock (0.85x, 0.7x) rather than only adding wind. | A clock you cannot meet is not difficulty. The pilot is conservative, so a human can beat it. |
 | 2026-10-16 | Tier 1 uses the Tiki Barge, the Hornet (on a mooring only) and the Sunset 42. | The light, fast Hornet and the wind-blown pontoon cannot hold station against a quay for a pilot (or a beginner): slips and moorings forgive, a quay does not. Heavy hulls are the forgiving ones. |
+| 2026-10-16 | The suite's `testTimeout` is 60 s (`vite.config.ts`), not Vitest's 5 s default. | The Pages deploy failed on `tests/montauk.day.test.ts` ("Test timed out in 5000ms"): a 2.3 s test on a laptop is over 5 s on a loaded runner, and the Nantucket dock tests had made the suite heavier. Reproduced on Node 24 under CPU load; the same run passes with the new timeout. |
 
 ## Session log
 
