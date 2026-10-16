@@ -1,6 +1,7 @@
 // Persistent settings and best scores (localStorage, tolerant of private mode).
 
 import type { Quality } from '../render/renderWorld';
+import type { GameId } from './mode';
 import type { GameConfig } from './state';
 
 export interface Settings {
@@ -9,7 +10,10 @@ export interface Settings {
   music: boolean;
   sfx: boolean;
   hud: boolean;
+  /** Haulover's last setup (the original single-game key, kept so existing saves carry over). */
   last?: Partial<GameConfig>;
+  /** The last setup of every other game. */
+  lastBy?: Partial<Record<GameId, Partial<GameConfig>>>;
 }
 
 const KEY = 'haulover-run:v1';
@@ -56,17 +60,30 @@ export function saveSettings(s: Settings): void {
   }
 }
 
-export const bestKey = (c: GameConfig): string =>
-  `${c.boat}|${c.weather}|${c.tide}|${c.difficulty}|${c.route}`;
-
-export function loadBest(c: GameConfig): number {
-  const all = read<Record<string, number>>(BEST, {});
-  return all[bestKey(c)] ?? 0;
+/** The remembered setup for a game (Haulover uses the original key). */
+export function lastConfig(s: Settings, game: GameId): Partial<GameConfig> {
+  return (game === 'haulover' ? s.last : s.lastBy?.[game]) ?? {};
 }
 
-export function saveBest(c: GameConfig, score: number): void {
+export function rememberConfig(s: Settings, game: GameId, c: GameConfig): void {
+  if (game === 'haulover') s.last = { ...c };
+  else s.lastBy = { ...s.lastBy, [game]: { ...c } };
+}
+
+/** Best-score key. Haulover keeps its original key shape so existing bests survive the multi-game split. */
+export const bestKey = (game: GameId, c: GameConfig): string => {
+  const k = `${c.boat}|${c.weather}|${c.tide}|${c.difficulty}|${c.route}`;
+  return game === 'haulover' ? k : `${game}:${k}`;
+};
+
+export function loadBest(game: GameId, c: GameConfig): number {
   const all = read<Record<string, number>>(BEST, {});
-  all[bestKey(c)] = score;
+  return all[bestKey(game, c)] ?? 0;
+}
+
+export function saveBest(game: GameId, c: GameConfig, score: number): void {
+  const all = read<Record<string, number>>(BEST, {});
+  all[bestKey(game, c)] = score;
   try {
     localStorage.setItem(BEST, JSON.stringify(all));
   } catch {

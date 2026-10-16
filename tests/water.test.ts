@@ -5,7 +5,8 @@ import { BOATS, boatById } from '../src/data/boats';
 import { difficultyById } from '../src/data/difficulty';
 import { weatherById } from '../src/data/weather';
 import { Autopilot } from '../src/game/autopilot';
-import { makeCourse } from '../src/game/course';
+import { HAULOVER } from '../src/locations/haulover';
+import { makeCourse } from '../src/locations/haulover/course';
 import { Boat } from '../src/sim/boat';
 import { makeBoatEnv } from '../src/sim/boatEnv';
 import { BoatWater, SPRAY_CHOP_MIN } from '../src/sim/boatWater';
@@ -164,7 +165,7 @@ describe('boats stay dry where the water is calm', () => {
     const diff = difficultyById('weekender');
     for (const spec of BOATS) {
       if (spec.id === 'cruiser' || spec.id === 'sloop') continue; // too slow to cover the course in a unit test
-      const env = new Environment();
+      const env = new Environment(HAULOVER);
       env.setConditions(weatherById('golden'), 'ebb', diff, true);
       const benv = makeBoatEnv(env);
       const course = makeCourse('outbound', diff.gateScale);

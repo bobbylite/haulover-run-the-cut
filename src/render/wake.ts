@@ -39,7 +39,7 @@ import {
   Vector4,
   type WebGPURenderer,
 } from 'three/webgpu';
-import { WORLD } from '../sim/geography';
+import type { WorldExtents } from '../locations/types';
 
 type N = any;
 
@@ -91,6 +91,7 @@ export class WakeMap {
   constructor(
     private readonly renderer: WebGPURenderer,
     flowTex: Texture,
+    WORLD: WorldExtents,
     res = 1024,
   ) {
     this.res = res;

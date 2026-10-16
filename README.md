@@ -1,17 +1,40 @@
-# HAULOVER — Run the Cut
+# Run the Cut
 
 <p align="center">
-  <strong>A physics-driven boating game set in Haulover Inlet, Miami.</strong><br />
-  Take the boat through the inlet, survive the sea, and bring it home to the marina.
+  <strong>Physics-driven boating games on one pastel engine.</strong><br />
+  <b>Haulover</b> — run the inlet, survive the sea, dock in the marina. &nbsp;·&nbsp;
+  <b>Montauk</b> — find the bait, troll a spread, hook a tuna and keep it on. &nbsp;·&nbsp;
+  <b>Nantucket</b> — the docking challenge <em>(coming soon)</em>.
 </p>
 
 <p align="center">
   <img src="docs/hero-golden.jpg" alt="A boat running the Cut at golden hour" width="100%" />
 </p>
 
+A title screen picks the game; each has its own menu, rules, scoring and best scores (`?game=haulover|montauk`).
+
+### Haulover
+
 Choose a boat, weather and tide, then run the narrow channel between Haulover's rock jetties. Round the sea
 buoy, return through the inlet, avoid hazards and harbour traffic, and dock in your slip. Ship too much water,
 let the sea break your hull or run out of time and the run is over.
+
+### Montauk
+
+*Landing a tuna is how you win.* It is dawn off Montauk Point, an easterly is leaning on the ebb, and you have a
+few minutes of daylight to find the bait, get a spread of lures through it and keep a tuna on the line while the
+crew reels. The wind and the tide **work against you the whole day and build as it goes**, and it is easy to lose
+the fish if you do not captain properly.
+
+| | |
+|---|---|
+| **Search** | Read the water. Terns and gannets diving on bait, white boils where tuna crash it, and a pale slick over bait that is not feeding right now. Hold `V` for binoculars (they double your range, tag what they see, and ignore the boat's motion). The **fish finder** shows the bait ball at its depth and tuna as arches beneath it, but only when you pass right over them. `T` marks a spot; the bait drifts with the tide, so the pin goes stale. Birds alone can be a decoy; boils mean tuna. Charge a school above ~10 kn through the water and it is spooked for a minute. |
+| **Troll** | `L` sets four lines off the stern. The lures only work in a window of speed *through the water* (about 4.5–8 kn: too slow and they sink, too fast and they skip out). They trail along your **track through the water**, so a sharp turn swings the lines across each other and tangles them (a calm, straight 8 seconds clears it); backing down with lines out wraps the prop. A tuna takes a lure that is in front of it, at the right depth, when its school is feeding. |
+| **Hook-up** | `FISH ON!` The strike sets the hook only at troll speed. Then you must **throttle back at once**: the line's tension rises with how fast it is paying out, so powering away from a fish parts the line. |
+| **Fight** | A real tether between the boat and the fish, not a bar. The fish has a position, depth and velocity and its own moods (**run**, **sound**, **thrash**, **circle**, a last **dash** at the boat, **tired**), each announced about a second and a half ahead on the HUD. The line has a length out, a stretch, and a drag that slips when tension passes its setting (`Q` ease / `E` tighten). The crew reels by themselves, fast when the fish is inside the **stern cone** and the line is not at its limit, slower when it is off the quarter, and not at all when it is ahead of the beam. A fish held under tension tires (the **sweet zone** is the green band); too much and the line **snaps**, too little for too long and the **hook pulls**, a fish under the boat or along the hull **chafes** the line through, and a wave slam is a spike. `Z` pumps the rod (faster, riskier, tires the crew). Fish prefer to run **with the tide**, so you chase them into the rips. A tired fish alongside is gaffed when the boat is quiet and the fish is astern. |
+| **Wind against tide** | Every Montauk sky blows an onshore easterly against the east-setting ebb, which stands the rips up (Cotton-Candy Dawn, Peach Fog Bank, Lilac Dusk, Rosé Nor'easter). Both build through the day (and the sky drifts to dusk), the boat's windage pushes it one way and the tide pushes it and the fish another, and the 45° wave rule from Haulover applies on the run out. The tide menu offers ebb or flood: there is no slack water here. |
+| **Tiers** | Deckhand, Mate, Captain, Montauk Legend: how much daylight you get, how many schools there are and how many hold tuna, how often they show on the surface, how hard they fight (bluefin get likelier), how good the crew is, how fast the drag slips, how fast the sea builds, and how much water the boat can take. |
+| **Scoring** | Weight × species value, a clean-fight bonus, daylight to spare, hull in one piece, minus lost fish and tangles, times the tier. One star for a tuna on the deck, three for a big clean fight. |
 
 Built with **three.js WebGPU + TSL**, a hand-written boat physics engine and a fully procedural world. Waves,
 hulls, palms, clouds, engine notes and music are generated at runtime—no model, texture or audio files required.
@@ -32,7 +55,7 @@ Open the local URL printed by Vite. The production build can be tested locally w
 Best in a current Chrome, Edge or Safari 26 (WebGPU). Firefox and older browsers fall back to WebGL2
 automatically. Phones work in landscape with on-screen controls; the game is designed primarily for desktop.
 
-## Highlights
+## Haulover highlights
 
 | | |
 |---|---|
@@ -74,9 +97,10 @@ automatically. Phones work in landscape with on-screen controls; the game is des
 | `W` / `S` | Throttle lever up / down (it stays where you leave it); `Space` idles |
 | `A` / `D` | Steer |
 | `B` | Hold to run the bilge pump |
-| `Q` / `E` | Trim the sheet in / out (sloop): keep the knob on the green tick |
+| `Q` / `E` | Trim the sheet in / out (sloop): keep the knob on the green tick. *Montauk:* ease / tighten the drag |
 | `F` | Hoist / drop sails (sloop) |
-| `C` | Camera: chase / helm / orbit |
+| `L` / `V` / `T` / `Z` | *Montauk:* set or reel in the lines / hold for binoculars / mark a spot / hold to pump the rod |
+| `C` | Camera: chase / helm / orbit (and a stern view when there are lines out or a fish on) |
 | `R` | Respawn at the last gate (+20 s) |
 | `Esc` / `P` | Pause |
 | `H` / `F2` | Hide HUD / photo mode |
@@ -88,7 +112,7 @@ A gamepad works too (stick steer, triggers throttle, A pumps, X camera). On touc
 throttle lever and buttons appear during a run.
 
 URL parameters (handy for demos and testing): `?boat=gofast&weather=squall&tide=ebb&difficulty=captain&route=inbound`,
-`route=full|outbound|inbound`, `quality=low|medium|high`, `webgl` to force the fallback renderer, `debug` for a telemetry overlay, and `noui`.
+`route=full|outbound|inbound`, `quality=low|medium|high`, for Montauk `game=montauk&weather=m-dawn|m-peach|m-dusk|m-gale&seed=7` (`seed` fixes where the fish are), `auto&go&skill=captain|idle|keepGoing|powerAway&cruise=0.5` for the scripted captain,, `webgl` to force the fallback renderer, `debug` for a telemetry overlay, `noui`, and `game=haulover` to skip the title screen (any of the original launch parameters also goes straight to Haulover).
 
 ## How it works
 
@@ -158,6 +182,11 @@ SWEEP=1 BOATS=console,cruiser WEATHERS=golden,squall CRUISES=0.4,0.7 npx vitest 
 TUNE=1 npx vitest run tests/tune.test.ts      # re-derive hull drag for the target top speeds
 ```
 
+`scripts/fish-run.mjs` plays whole Montauk days the same way (`--seed 1,2,3 --difficulty weekender --skill captain`)
+and `scripts/fish-fights.mjs` fights many fish back to back on the real boat and sea to measure land rates per tier.
+The fishing sims (`sim/fishing/`) are pure and seeded and are covered by `tests/fishing.*.test.ts` and
+`tests/montauk.*.test.ts`, including scripted good and bad captains.
+
 `scripts/sim-run.mjs` plays a whole game headlessly in the real page (autopilot at the helm, time fast-forwarded)
 and prints the outcome, which is how the difficulty tiers were balanced.
 
@@ -169,13 +198,17 @@ exercises the touch layout in a phone-sized viewport. `?auto` hands the helm to 
 
 ```
 src/
-  sim/       geography, waves, wind, environment, hazards, boat + water physics (no rendering)
+  game/      the engine host (`Game`), the `GameMode` seam, camera, input, autopilot, scoring, saves
+  games/     one folder per game (rules + UI): haulover/, montauk/ (fish mode, sonar, chart, visuals, dev bot), plus the registry that loads them on demand
+  shell/     the title screen
+  sim/       geoGrid, waves, wind, environment, hazards, boat + water physics, sails (no rendering)
+  sim/fishing/  the fish world, trolling tackle and the fight (pure, seeded, no rendering)
+  locations/ one folder per place: sea fields, harbour, terrain, scenery, route (haulover/, montauk/)
   data/      boats, weather presets, difficulties
-  game/      state machine, course + scoring, docking challenge, input, camera, traffic AI, autopilot
-  render/    renderer, water, sky, terrain, wake, post, FX, boats/ and world/ builders
+  render/    renderer, water, sky, wake, post, FX, boat builders (a location supplies its own terrain and scenery)
   audio/     procedural WebAudio engine + generative music
-  ui/        menu, HUD, minimap, touch controls
-tests/       vitest: physics calibration, balance, environment, course, scoring, traffic
+  ui/        the shell UI: loading, shared menu sections, HUD dials, pause/results, touch controls
+tests/       vitest: physics calibration, balance, wave attack, water & damage, sailing, vessels, locations, shell, docking, scoring, traffic
 ```
 
 ## Deploy to GitHub Pages
@@ -189,6 +222,11 @@ The repository includes a GitHub Actions workflow at `.github/workflows/deploy.y
 The build uses relative asset paths (`base: './'`) and has no client-side routing, so it works from a project
 site URL (`https://user.github.io/repo/`) or a custom domain. A `404.html` and `.nojekyll` are included.
 Social-card tags (`og:image`, etc.) are injected automatically with the real URL during the Pages build.
+
+## Roadmap
+
+Haulover and Montauk are playable; **Nantucket** (the docking challenge, up to cruise ships) is next. The plan, milestones and progress log live in
+[docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## License
 

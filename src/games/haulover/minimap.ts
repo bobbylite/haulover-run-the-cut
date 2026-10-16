@@ -1,9 +1,9 @@
 // Route-strip minimap: a top-down view of the whole course painted from the baked bathymetry,
 // with gates, the current's set and the boat.
 
-import { KNOTS } from '../core/math';
-import type { Game } from '../game/game';
-import { BRIDGE_X, JETTY_X0, JETTY_X1, jettyZ } from '../sim/geography';
+import { KNOTS } from '../../core/math';
+import type { Game } from '../../game/game';
+import type { HaulMode } from './mode';
 
 const X0 = -1060;
 const X1 = 1140;
@@ -20,7 +20,10 @@ export class MiniMap {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly bg = document.createElement('canvas');
 
-  constructor(private readonly game: Game) {
+  constructor(
+    private readonly game: Game,
+    private readonly mode: HaulMode,
+  ) {
     this.canvas.width = W;
     this.canvas.height = H;
     this.bg.width = W;
@@ -33,6 +36,7 @@ export class MiniMap {
   redraw(): void {
     const g = this.bg.getContext('2d') as CanvasRenderingContext2D;
     const geo = this.game.env.geo;
+    const map = this.game.loc.map;
     const img = g.createImageData(W, H);
     for (let py = 0; py < H; py++) {
       const z = Z0 + ((py + 0.5) / H) * (Z1 - Z0);
@@ -47,7 +51,7 @@ export class MiniMap {
           r = 196 - 40 * t;
           gg = 222 - 20 * t;
           b = 160 - 50 * t;
-          if (Math.abs(x - BRIDGE_X) < 8) {
+          if (map.bridgeX !== undefined && Math.abs(x - map.bridgeX) < 8) {
             r = 150;
             gg = 148;
             b = 170;
@@ -76,12 +80,14 @@ export class MiniMap {
     g.strokeStyle = '#8b92a6';
     g.lineWidth = 3;
     g.lineCap = 'round';
-    for (const side of [-1, 1] as const) {
+    const jet = map.jetties;
+    for (const side of jet ? ([-1, 1] as const) : []) {
+      if (!jet) break;
       g.beginPath();
-      for (let x = JETTY_X0; x <= JETTY_X1; x += 20) {
+      for (let x = jet.x0; x <= jet.x1; x += 20) {
         const px = sx(x);
-        const pz = sz(jettyZ(side, x));
-        if (x === JETTY_X0) g.moveTo(px, pz);
+        const pz = sz(jet.z(side, x));
+        if (x === jet.x0) g.moveTo(px, pz);
         else g.lineTo(px, pz);
       }
       g.stroke();
@@ -114,7 +120,7 @@ export class MiniMap {
     }
 
     // course
-    const c = this.game.course;
+    const c = this.mode.course;
     g.setLineDash([7, 6]);
     g.strokeStyle = 'rgba(255,255,255,0.95)';
     g.lineWidth = 2;
@@ -177,7 +183,7 @@ export class MiniMap {
     const g = this.ctx;
     g.drawImage(this.bg, 0, 0);
     // other traffic: small white chevrons
-    for (const v of this.game.traffic.vessels) {
+    for (const v of this.mode.traffic.vessels) {
       if (v.wait > 0) continue;
       g.save();
       g.translate(sx(v.boat.pos.x), sz(v.boat.pos.z));

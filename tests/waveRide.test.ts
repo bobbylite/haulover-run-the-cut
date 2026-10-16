@@ -5,6 +5,7 @@ import { wrapAngle } from '../src/core/math';
 import { boatById } from '../src/data/boats';
 import { difficultyById } from '../src/data/difficulty';
 import { weatherById } from '../src/data/weather';
+import { HAULOVER } from '../src/locations/haulover';
 import { Boat } from '../src/sim/boat';
 import { makeBoatEnv } from '../src/sim/boatEnv';
 import { Environment } from '../src/sim/environment';
@@ -71,7 +72,7 @@ describe('wave attack rules', () => {
 });
 
 describe('wave field axis', () => {
-  const env = new Environment();
+  const env = new Environment(HAULOVER);
   env.setConditions(weatherById('breeze'), 'slack', difficultyById('weekender'), true);
   const ax = makeWaveAxis();
 
@@ -87,7 +88,7 @@ describe('wave field axis', () => {
   it('reports a flat sea in the sheltered bay and a bigger one in a squall', () => {
     env.waves.axisAt(-800, 0, ax);
     expect(ax.hs).toBeLessThan(0.5);
-    const rough = new Environment();
+    const rough = new Environment(HAULOVER);
     rough.setConditions(weatherById('squall'), 'slack', difficultyById('weekender'), true);
     const sq = makeWaveAxis();
     rough.waves.axisAt(1400, 0, sq);
@@ -162,7 +163,7 @@ interface Outcome {
 
 function hold(boatId: string, weather: string, deg: number, throttle: number, secs = 60): Outcome {
   const diff = difficultyById('weekender');
-  const env = new Environment();
+  const env = new Environment(HAULOVER);
   env.setConditions(weatherById(weather), 'slack', diff, true);
   const benv = makeBoatEnv(env);
   const ax = makeWaveAxis();

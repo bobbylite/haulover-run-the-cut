@@ -1,12 +1,13 @@
 // Everything that dresses the scene around the water.
 
 import { Group } from 'three/webgpu';
-import type { Environment } from '../../sim/environment';
-import type { Quality } from '../renderWorld';
+import type { Quality } from '../../../render/renderWorld';
+import { DockMarker } from '../../../render/world/dockMarker';
+import type { Environment } from '../../../sim/environment';
+import type { LocationProps, SlipBerth } from '../../types';
 import { Beach, Sandbar } from './beach';
 import { Bridge } from './bridge';
 import { City } from './city';
-import { DockMarker } from './dockMarker';
 import { buildJetties } from './jetties';
 import { Marina } from './marina';
 import { PilingField } from './pilings';
@@ -14,18 +15,19 @@ import { buildSeawalls } from './seawall';
 import { Vegetation } from './vegetation';
 import { Wildlife } from './wildlife';
 
-export class WorldProps {
+export class WorldProps implements LocationProps {
   readonly group = new Group();
   private readonly bridge = new Bridge();
   private readonly marina = new Marina();
   private readonly beach: Beach;
   private readonly sandbar = new Sandbar();
   readonly wildlife: Wildlife;
-  readonly dockMarker = new DockMarker();
+  readonly dockMarker: DockMarker;
   private readonly pilings = new PilingField();
 
-  constructor(quality: Quality = 'high') {
+  constructor(quality: Quality, berth: SlipBerth) {
     this.group.name = 'worldProps';
+    this.dockMarker = new DockMarker(berth);
     this.beach = new Beach(quality);
     this.wildlife = new Wildlife(quality);
     this.group.add(

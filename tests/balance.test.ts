@@ -6,7 +6,8 @@ import { boatById } from '../src/data/boats';
 import { difficultyById } from '../src/data/difficulty';
 import { weatherById } from '../src/data/weather';
 import { Autopilot } from '../src/game/autopilot';
-import { makeCourse } from '../src/game/course';
+import { HAULOVER } from '../src/locations/haulover';
+import { makeCourse } from '../src/locations/haulover/course';
 import { Boat } from '../src/sim/boat';
 import { makeBoatEnv } from '../src/sim/boatEnv';
 import { Environment } from '../src/sim/environment';
@@ -18,7 +19,7 @@ interface Result {
 
 function run(boatId: string, weather: string, cruise: number, diffId: string): Result {
   const diff = difficultyById(diffId);
-  const env = new Environment();
+  const env = new Environment(HAULOVER);
   env.setConditions(weatherById(weather), 'ebb', diff, true);
   const benv = makeBoatEnv(env);
   const course = makeCourse('outbound', diff.gateScale);
@@ -98,7 +99,7 @@ function sloopRun(
   sail: boolean,
 ): { outcome: 'finish' | 'swamped' | 'wrecked' | 'capsized' | 'timeout'; time: number } {
   const diff = difficultyById('weekender');
-  const env = new Environment();
+  const env = new Environment(HAULOVER);
   env.setConditions(weatherById('breeze'), tide, diff, true);
   const benv = makeBoatEnv(env);
   const course = makeCourse(route, diff.gateScale);

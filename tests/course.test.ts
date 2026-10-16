@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { crossedGate, makeCourse, pathProgress } from '../src/game/course';
+import { crossedGate, pathProgress } from '../src/game/course';
+import { makeCourse } from '../src/locations/haulover/course';
 
 describe('course', () => {
   it('outbound gates are ordered west to east and the finish is last', () => {

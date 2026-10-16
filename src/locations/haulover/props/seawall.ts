@@ -1,11 +1,11 @@
 // The two seawalls of the Cut: concrete face + promenade, lamp posts, channel daymarks, fishermen.
 
 import { Color, Group, Mesh } from 'three/webgpu';
-import { Rng } from '../../core/math';
-import { bayX, beachX, cutHalfW, cutZ, SEA_WALL_TOP } from '../../sim/geography';
-import { bulb, gel, matte, metal } from '../boats/materials';
-import { PartBuilder, type V3 } from '../boats/parts';
-import { type P3, sweep } from './sweep';
+import { Rng } from '../../../core/math';
+import { bulb, gel, matte, metal } from '../../../render/boats/materials';
+import { PartBuilder, type V3 } from '../../../render/boats/parts';
+import { type P3, sweep } from '../../../render/world/sweep';
+import { bayX, beachX, cutHalfW, cutZ, SEA_WALL_TOP } from '../geography';
 
 export const WALL_PROMENADE = 11;
 

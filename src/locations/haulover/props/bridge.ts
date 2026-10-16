@@ -4,12 +4,12 @@
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { float, fract, mix, smoothstep, uv, vec3 } from 'three/tsl';
 import { Color, Group, InstancedMesh, Matrix4, Mesh, Quaternion, Vector3 } from 'three/webgpu';
-import { Rng, smoothstep as sstep } from '../../core/math';
-import { BRIDGE_X, seabedHeight } from '../../sim/geography';
-import { bulb, gel, matte, metal } from '../boats/materials';
-import { PartBuilder, type V3 } from '../boats/parts';
-import { ToonMaterial } from '../toon';
-import { type P3, sweep } from './sweep';
+import { Rng, smoothstep as sstep } from '../../../core/math';
+import { bulb, gel, matte, metal } from '../../../render/boats/materials';
+import { PartBuilder, type V3 } from '../../../render/boats/parts';
+import { ToonMaterial } from '../../../render/toon';
+import { type P3, sweep } from '../../../render/world/sweep';
+import { BRIDGE_X, seabedHeight } from '../geography';
 
 type N = any;
 

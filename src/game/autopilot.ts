@@ -1,8 +1,8 @@
 // Path-following helm used for testing, AI traffic and the attract mode.
 
 import { clamp, wrapAngle } from '../core/math';
+import type { SlipBerth } from '../locations/types';
 import type { Boat } from '../sim/boat';
-import { SLIP } from '../sim/geography';
 import { idealSheet } from '../sim/sail';
 import type { Controls } from './input';
 
@@ -16,6 +16,8 @@ export class Autopilot {
   private thrI = 0;
   /** When set, the pilot slows for the marina and parks in the target slip. */
   dock = false;
+  /** The berth to park in when `dock` is set. */
+  berth?: SlipBerth;
 
   constructor(
     private path: Waypoint[],
@@ -59,8 +61,9 @@ export class Autopilot {
     this.advance(boat.pos.x, boat.pos.z);
     // docking: speed falls away with distance to the berth and the last metres are flown by hand
     let berthDist = Infinity;
-    const bx = SLIP.x1 - (boat.spec.length * 0.5 + 1.1);
-    if (this.dock) berthDist = Math.hypot(boat.pos.x - bx, boat.pos.z - SLIP.z);
+    const slip = this.dock ? this.berth : undefined;
+    const bx = slip ? slip.x1 - (boat.spec.length * 0.5 + 1.1) : 0;
+    if (slip) berthDist = Math.hypot(boat.pos.x - bx, boat.pos.z - slip.z);
     const docking = berthDist < 270;
     const look = docking ? clamp(boat.sog * 3 + 10, 12, 40) : clamp(boat.sog * 2.4, 22, 130);
     let acc = 0;
@@ -74,10 +77,10 @@ export class Autopilot {
     }
     let tx = (this.path[ti % n] as Waypoint).x;
     let tz = (this.path[ti % n] as Waypoint).z;
-    if (docking && berthDist < 28) {
+    if (slip && docking && berthDist < 28) {
       // straight down the slip to the berth
       tx = bx + 40;
-      tz = SLIP.z;
+      tz = slip.z;
     }
     const desired = Math.atan2(tz - boat.pos.z, tx - boat.pos.x);
     // steer against course-over-ground so the tide's set doesn't push us off the line

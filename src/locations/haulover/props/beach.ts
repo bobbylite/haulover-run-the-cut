@@ -15,18 +15,18 @@ import {
   TorusGeometry,
   Vector3,
 } from 'three/webgpu';
-import { Rng } from '../../core/math';
-import { boatById } from '../../data/boats';
-import type { Environment } from '../../sim/environment';
-import { beachX, cutZ, SANDBAR, seabedHeight } from '../../sim/geography';
-import { makeWaveSample } from '../../sim/waves';
-import { makeFlag } from '../boats/common';
-import { gel, glass, matte, metal } from '../boats/materials';
-import { buildConsole, type ConsolePaint } from '../boats/models/console';
-import { buildGoFast } from '../boats/models/gofast';
-import { buildPontoon } from '../boats/models/pontoon';
-import { PartBuilder } from '../boats/parts';
-import { ToonMaterial } from '../toon';
+import { Rng } from '../../../core/math';
+import { boatById } from '../../../data/boats';
+import { makeFlag } from '../../../render/boats/common';
+import { gel, glass, matte, metal } from '../../../render/boats/materials';
+import { buildConsole, type ConsolePaint } from '../../../render/boats/models/console';
+import { buildGoFast } from '../../../render/boats/models/gofast';
+import { buildPontoon } from '../../../render/boats/models/pontoon';
+import { PartBuilder } from '../../../render/boats/parts';
+import { ToonMaterial } from '../../../render/toon';
+import type { Environment } from '../../../sim/environment';
+import { makeWaveSample } from '../../../sim/waves';
+import { beachX, cutZ, SANDBAR, seabedHeight } from '../geography';
 
 const HUT_PALETTES = [
   ['#ffd2e1', '#7fe3d1', '#fff6e6'],

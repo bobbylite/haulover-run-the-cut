@@ -11,6 +11,7 @@ import {
   Vector3,
   WebGPURenderer,
 } from 'three/webgpu';
+import type { LocationProps } from '../locations/types';
 import type { Environment } from '../sim/environment';
 import { Atmosphere } from './atmosphere';
 import { Lightning } from './fx/lightning';
@@ -19,12 +20,10 @@ import { SprayFX } from './fx/spray';
 import { PerfGovernor } from './perf';
 import { PostPipeline } from './pipeline';
 import { Sky } from './sky';
-import { buildTerrain } from './terrain';
 import { makeFlowTexture, makeGeoTexture, makeNoiseTexture, makeRippleNormalTexture } from './textures';
 import { type WakeBoat, WakeMap } from './wake';
 import { Water } from './water';
 import { WeatherState } from './weatherState';
-import { WorldProps } from './world/world';
 
 export type Quality = 'low' | 'medium' | 'high';
 
@@ -44,7 +43,7 @@ export class RenderWorld {
   water!: Water;
   post!: PostPipeline;
   weather!: WeatherState;
-  props!: WorldProps;
+  props!: LocationProps;
   wake!: WakeMap;
   spray!: SprayFX;
   rain!: Rain;
@@ -103,13 +102,17 @@ export class RenderWorld {
     this.sky = new Sky(this.atmos);
     scene.add(this.sky.mesh);
 
-    this.wake = new WakeMap(renderer, flowTex, this.quality === 'low' ? 512 : 1024);
-    this.water = new Water({ geo: geoTex, flow: flowTex, ripple, noise }, this.atmos, this.wake.texture);
+    this.wake = new WakeMap(renderer, flowTex, env.geo.world, this.quality === 'low' ? 512 : 1024);
+    this.water = new Water(
+      { geo: geoTex, flow: flowTex, ripple, noise, world: env.geo.world },
+      this.atmos,
+      this.wake.texture,
+    );
     scene.add(this.water.mesh);
     this.water.uWakeSize.value = this.wake.size;
 
-    scene.add(buildTerrain(env.geo, noise));
-    this.props = new WorldProps(this.quality);
+    scene.add(env.loc.buildTerrain(env.geo, noise));
+    this.props = env.loc.buildProps(this.quality);
     scene.add(this.props.group);
     scene.add(this.world);
     this.spray = new SprayFX();

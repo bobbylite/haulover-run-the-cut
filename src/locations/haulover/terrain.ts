@@ -3,20 +3,11 @@
 
 import { positionWorld, texture, vec2, vec3 } from 'three/tsl';
 import { BufferAttribute, BufferGeometry, Color, type DataTexture, Group, Mesh } from 'three/webgpu';
-import { clamp, fbm2, smoothstep } from '../core/math';
-import {
-  BRIDGE_X,
-  bayX,
-  beachX,
-  cutHalfW,
-  cutZ,
-  type GeoGrid,
-  landSDF,
-  seabedHeight,
-  WORLD,
-} from '../sim/geography';
-import { ToonMaterial } from './toon';
-import { wallRange } from './world/seawall';
+import { clamp, fbm2, smoothstep } from '../../core/math';
+import { ToonMaterial } from '../../render/toon';
+import type { GeoGrid } from '../../sim/geoGrid';
+import { BRIDGE_X, bayX, beachX, cutHalfW, cutZ, landSDF, seabedHeight, WORLD } from './geography';
+import { wallRange } from './props/seawall';
 
 const C = {
   sandDry: new Color('#f5e3bd'),

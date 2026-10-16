@@ -5,16 +5,26 @@ import { boatById } from '../src/data/boats';
 import { difficultyById } from '../src/data/difficulty';
 import { weatherById } from '../src/data/weather';
 import { Autopilot } from '../src/game/autopilot';
-import { crossedGate, makeCourse } from '../src/game/course';
+import { crossedGate } from '../src/game/course';
 import { Docking } from '../src/game/docking';
+import { HAULOVER } from '../src/locations/haulover';
+import { makeCourse } from '../src/locations/haulover/course';
+import {
+  DOCK_APPROACH,
+  hardSDF,
+  MOORED,
+  PILINGS,
+  SLIP,
+  SLIP_BERTH,
+} from '../src/locations/haulover/geography';
 import { Boat } from '../src/sim/boat';
 import { makeBoatEnv } from '../src/sim/boatEnv';
 import { Environment } from '../src/sim/environment';
-import { DOCK_APPROACH, GeoGrid, hardSDF, MOORED, PILINGS, SLIP } from '../src/sim/geography';
+import { GeoGrid } from '../src/sim/geoGrid';
 
 function dockRun(boatId: string, weather: string): 'docked' | 'timeout' | 'sunk' | 'capsized' | 'gaveup' {
   const diff = difficultyById('weekender');
-  const env = new Environment();
+  const env = new Environment(HAULOVER);
   env.setConditions(weatherById(weather), 'flood', diff, true);
   const benv = makeBoatEnv(env);
   const course = makeCourse('inbound', diff.gateScale);
@@ -25,7 +35,8 @@ function dockRun(boatId: string, weather: string): 'docked' | 'timeout' | 'sunk'
   boat.water.autoBilge = diff.autoBilge;
   const ap = new Autopilot(course.path, 0.5);
   ap.dock = true;
-  const dock = new Docking();
+  ap.berth = SLIP_BERTH;
+  const dock = new Docking(SLIP_BERTH);
   const ctl = { throttle: 0, steer: 0, sheet: 0.5, pump: false };
   const dt = 1 / 30;
   let gate = 0;
@@ -58,7 +69,7 @@ function dockRun(boatId: string, weather: string): 'docked' | 'timeout' | 'sunk'
 
 describe('docking challenge', () => {
   it('the approach corridor, slip and berth are open water of sufficient depth', () => {
-    const geo = GeoGrid.bake();
+    const geo = GeoGrid.bake(HAULOVER);
     for (const [x, z] of DOCK_APPROACH) {
       expect(-geo.heightAt(x, z), `depth ${x},${z}`).toBeGreaterThan(2.5);
       expect(hardSDF(x, z), `clearance ${x},${z}`).toBeGreaterThan(5);

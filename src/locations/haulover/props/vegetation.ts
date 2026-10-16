@@ -14,7 +14,9 @@ import {
   Quaternion,
   Vector3,
 } from 'three/webgpu';
-import { clamp, hash2, noise2, Rng } from '../../core/math';
+import { clamp, hash2, noise2, Rng } from '../../../core/math';
+import { shared } from '../../../render/shared';
+import { ToonMaterial } from '../../../render/toon';
 import {
   BRIDGE_X,
   bayX,
@@ -26,9 +28,7 @@ import {
   landSDF,
   mainX,
   seabedHeight,
-} from '../../sim/geography';
-import { shared } from '../shared';
-import { ToonMaterial } from '../toon';
+} from '../geography';
 
 type N = any;
 

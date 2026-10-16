@@ -2,9 +2,9 @@
 // (hard hits). Placed deterministically along the course; logs drift with the tide.
 
 import { Rng } from '../core/math';
+import type { Location } from '../locations/types';
 import type { DynamicObstacles } from './boatEnv';
 import type { Environment } from './environment';
-import { cutHalfW, hardSDF, seabedHeight } from './geography';
 
 export interface Hazard {
   kind: 'pot' | 'log';
@@ -28,9 +28,12 @@ export interface HazardPath {
 export class Hazards {
   readonly list: Hazard[] = [];
 
+  constructor(private readonly loc: Location) {}
+
   /** Scatter hazards along the path. `perKm` is the density; the first and last stretches stay clear. */
   generate(course: HazardPath, perKm: number, seed = 1313): void {
     this.list.length = 0;
+    const { seabedHeight, hardSDF } = this.loc.fields;
     const rng = new Rng(seed);
     const total = Math.round((course.length / 1000) * perKm);
     let tries = 0;
@@ -44,7 +47,7 @@ export class Hazards {
       const l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
       const nx = -(b.z - a.z) / l;
       const nz = (b.x - a.x) / l;
-      const half = Math.max(14, Math.min(46, cutHalfW(Math.min(Math.max(a.x, -480), 480)) * 0.7));
+      const half = Math.max(14, Math.min(46, this.loc.corridorHalf(a.x) * 0.7));
       // clusters of pots (a trap line), singles for logs
       const kind: Hazard['kind'] = rng.next() < 0.7 ? 'pot' : 'log';
       const lat = (rng.next() + rng.next() - 1) * half;
@@ -52,7 +55,7 @@ export class Hazards {
       const z = a.z + nz * lat;
       if (-seabedHeight(x, z) < 2.4 || hardSDF(x, z) < 8) continue;
       // the marina basin has its own obstacles
-      if (x < -440 && z > 20) continue;
+      if (this.loc.keepClear?.(x, z)) continue;
       const n = kind === 'pot' ? 1 + Math.floor(rng.next() * 3) : 1;
       for (let k = 0; k < n; k++) {
         const hx = x + (k === 0 ? 0 : rng.range(-9, 9));

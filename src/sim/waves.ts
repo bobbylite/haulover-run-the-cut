@@ -2,7 +2,7 @@
 // same parameters, so a boat's buoyancy samples sit exactly on the surface the player sees.
 
 import { clamp } from '../core/math';
-import type { GeoGrid } from './geography';
+import type { GeoGrid } from './geoGrid';
 
 export const SWELL_COUNT = 3;
 export const CHOP_COUNT = 5;

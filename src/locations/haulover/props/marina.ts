@@ -2,15 +2,15 @@
 // fleet of moored boats in assorted paint jobs that bob on the live waves.
 
 import { Group, Quaternion, Vector3 } from 'three/webgpu';
-import { boatById } from '../../data/boats';
-import type { Environment } from '../../sim/environment';
-import { bayX, DOCKS, MOORED } from '../../sim/geography';
-import { makeWaveSample } from '../../sim/waves';
-import { bulb, gel, matte, metal, teak } from '../boats/materials';
-import { buildConsole, type ConsolePaint } from '../boats/models/console';
-import { buildCruiser, type CruiserPaint } from '../boats/models/cruiser';
-import { buildGoFast, type GoFastPaint } from '../boats/models/gofast';
-import { PartBuilder } from '../boats/parts';
+import { boatById } from '../../../data/boats';
+import { bulb, gel, matte, metal, teak } from '../../../render/boats/materials';
+import { buildConsole, type ConsolePaint } from '../../../render/boats/models/console';
+import { buildCruiser, type CruiserPaint } from '../../../render/boats/models/cruiser';
+import { buildGoFast, type GoFastPaint } from '../../../render/boats/models/gofast';
+import { PartBuilder } from '../../../render/boats/parts';
+import type { Environment } from '../../../sim/environment';
+import { makeWaveSample } from '../../../sim/waves';
+import { bayX, DOCKS, MOORED } from '../geography';
 
 interface Moored {
   g: Group;

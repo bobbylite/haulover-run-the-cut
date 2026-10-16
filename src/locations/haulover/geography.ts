@@ -6,14 +6,12 @@
 // Everything here is a pure function of (x, z) so that the CPU physics, the baked GPU data
 // textures, the terrain mesh and the props all agree about where the water is.
 
-import { clamp, distToSegment, fbm2, lerp, noise2, Rng, saturate, smoothstep } from '../core/math';
+import { clamp, distToSegment, fbm2, lerp, noise2, Rng, smoothstep } from '../../core/math';
+import type { Dock, Moored, Piling, SlipBerth } from '../types';
 
 export const WORLD = { x0: -2000, x1: 2000, z0: -1300, z1: 1300, cell: 4 } as const;
-export const NX = (WORLD.x1 - WORLD.x0) / WORLD.cell;
-export const NZ = (WORLD.z1 - WORLD.z0) / WORLD.cell;
+/** Cell size (m) of the baked tidal-flow grid. */
 export const FLOW_CELL = 8;
-export const FLOW_NX = (WORLD.x1 - WORLD.x0) / FLOW_CELL;
-export const FLOW_NZ = (WORLD.z1 - WORLD.z0) / FLOW_CELL;
 
 // ----------------------------------------------------------------------------------------------
 // Design data
@@ -131,12 +129,6 @@ function jettySDF(side: -1 | 1, x: number, z: number): number {
 }
 
 /** Marina finger piers (rects in world space, set after the bay shoreline is known). */
-export interface Dock {
-  x: number;
-  z: number;
-  hx: number;
-  hz: number;
-}
 export const DOCKS: Dock[] = [];
 (function buildMarina() {
   // finger piers jutting west from the south shore of the bay mouth
@@ -151,16 +143,14 @@ export const DOCKS: Dock[] = [];
   DOCKS.push({ x: bayX((z0 + z1) / 2) - 3, z: (z0 + z1) / 2, hx: 1.6, hz: (z1 - z0) / 2 + 4 });
 })();
 
-export interface Piling {
-  x: number;
-  z: number;
-  r: number;
-}
 /** Round hard obstacles: old timber pilings and the hulls of moored boats. */
 export const PILINGS: Piling[] = [];
 
 /** The slip the docking challenge asks you to park in (between the 3rd and 4th finger piers). */
 export const SLIP = { z: 158, x0: -440, x1: -390, half: 10.8 } as const;
+
+/** The same slip as a `SlipBerth`, for the docking game. */
+export const SLIP_BERTH: SlipBerth = { id: 'slip3', label: 'Slip 3', ...SLIP };
 
 /**
  * The line through the old piling field to the slip. Waypoints (x, z): the Marina Entrance gate is
@@ -180,15 +170,6 @@ export const DOCK_APPROACH: readonly (readonly [number, number])[] = [
 /** The open fairway south of the piling field where harbour traffic circulates (an oval racetrack). */
 export const BASIN_LOOP = { x: -494, z: 192, rx: 30, rz: 36 } as const;
 
-export interface Moored {
-  x: number;
-  z: number;
-  yaw: number;
-  kind: 'console' | 'gofast' | 'cruiser';
-  length: number;
-  beam: number;
-  pal: number;
-}
 /** Boats tied up in the slips (the target slip is left free). */
 export const MOORED: Moored[] = [];
 
@@ -532,82 +513,3 @@ export function currentUnit(x: number, z: number, out: { x: number; z: number })
   out.x = ux;
   out.z = uz;
 }
-
-// ----------------------------------------------------------------------------------------------
-// Baked grid (shared by CPU physics and GPU shaders)
-// ----------------------------------------------------------------------------------------------
-
-export class GeoGrid {
-  /** Terrain/sea-floor height in metres (negative = underwater). */
-  readonly height = new Float32Array(NX * NZ);
-  /** Swell exposure 0..1. */
-  readonly swell = new Float32Array(NX * NZ);
-  /** Haystack mask 0..1. */
-  readonly hay = new Float32Array(NX * NZ);
-  /** Floor kind: 0 sand, 1 seagrass, 2 rock. */
-  readonly kind = new Float32Array(NX * NZ);
-  /** Unit tidal flow (ebb positive). */
-  readonly flowX = new Float32Array(FLOW_NX * FLOW_NZ);
-  readonly flowZ = new Float32Array(FLOW_NX * FLOW_NZ);
-
-  static bake(): GeoGrid {
-    const g = new GeoGrid();
-    const o = { x: 0, z: 0 };
-    for (let j = 0; j < NZ; j++) {
-      const z = WORLD.z0 + (j + 0.5) * WORLD.cell;
-      for (let i = 0; i < NX; i++) {
-        const x = WORLD.x0 + (i + 0.5) * WORLD.cell;
-        const idx = j * NX + i;
-        const h = seabedHeight(x, z);
-        g.height[idx] = h;
-        g.swell[idx] = swellExposure(x, z);
-        g.hay[idx] = hayMask(x, z);
-        g.kind[idx] = floorKind(x, z, h);
-      }
-    }
-    for (let j = 0; j < FLOW_NZ; j++) {
-      const z = WORLD.z0 + (j + 0.5) * FLOW_CELL;
-      for (let i = 0; i < FLOW_NX; i++) {
-        const x = WORLD.x0 + (i + 0.5) * FLOW_CELL;
-        currentUnit(x, z, o);
-        g.flowX[j * FLOW_NX + i] = o.x;
-        g.flowZ[j * FLOW_NX + i] = o.z;
-      }
-    }
-    return g;
-  }
-
-  private bilinear(a: Float32Array, nx: number, nz: number, cell: number, x: number, z: number): number {
-    const fx = clamp((x - WORLD.x0) / cell - 0.5, 0, nx - 1.001);
-    const fz = clamp((z - WORLD.z0) / cell - 0.5, 0, nz - 1.001);
-    const ix = Math.floor(fx);
-    const iz = Math.floor(fz);
-    const tx = fx - ix;
-    const tz = fz - iz;
-    const i0 = iz * nx + ix;
-    const a00 = a[i0] as number;
-    const a10 = a[i0 + 1] as number;
-    const a01 = a[i0 + nx] as number;
-    const a11 = a[i0 + nx + 1] as number;
-    return (a00 * (1 - tx) + a10 * tx) * (1 - tz) + (a01 * (1 - tx) + a11 * tx) * tz;
-  }
-
-  heightAt(x: number, z: number): number {
-    return this.bilinear(this.height, NX, NZ, WORLD.cell, x, z);
-  }
-  swellAt(x: number, z: number): number {
-    return this.bilinear(this.swell, NX, NZ, WORLD.cell, x, z);
-  }
-  hayAt(x: number, z: number): number {
-    return this.bilinear(this.hay, NX, NZ, WORLD.cell, x, z);
-  }
-  kindAt(x: number, z: number): number {
-    return this.bilinear(this.kind, NX, NZ, WORLD.cell, x, z);
-  }
-  flowAt(x: number, z: number, out: { x: number; z: number }): void {
-    out.x = this.bilinear(this.flowX, FLOW_NX, FLOW_NZ, FLOW_CELL, x, z);
-    out.z = this.bilinear(this.flowZ, FLOW_NX, FLOW_NZ, FLOW_CELL, x, z);
-  }
-}
-
-export { distToSegment, saturate };

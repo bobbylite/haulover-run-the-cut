@@ -49,19 +49,14 @@ import {
   Vector3,
   Vector4,
 } from 'three/webgpu';
+import type { WorldExtents } from '../locations/types';
 import type { Environment } from '../sim/environment';
-import { WORLD } from '../sim/geography';
 import { CHOP_COUNT, NUM_WAVES, SWELL_COUNT } from '../sim/waves';
 import type { Atmosphere } from './atmosphere';
 import { toonQ } from './toon';
 import type { WeatherState } from './weatherState';
 
 type N = any;
-
-const GX0 = WORLD.x0;
-const GZ0 = WORLD.z0;
-const GW = WORLD.x1 - WORLD.x0;
-const GH = WORLD.z1 - WORLD.z0;
 
 // Nominal wavelengths of the short components (for distance fading), matched to sim/waves.ts
 const FADE_LEN: number[] = [0, 0, 0, 24, 16, 10.5, 7, 4.6, 16, 12, 9.2, 7];
@@ -71,6 +66,8 @@ export interface WaterTextures {
   flow: Texture;
   ripple: Texture;
   noise: Texture;
+  /** Extent the geo / flow textures cover (m). */
+  world: WorldExtents;
 }
 
 /** Camera-centred polar grid: dense near the camera, crack-free by construction. */
@@ -177,6 +174,10 @@ export class Water {
   // ---------------------------------------------------------------------------------------------
 
   private buildMaterial(): NodeMaterial {
+    const GX0 = this.tex.world.x0;
+    const GZ0 = this.tex.world.z0;
+    const GW = this.tex.world.x1 - this.tex.world.x0;
+    const GH = this.tex.world.z1 - this.tex.world.z0;
     const mat = new NodeMaterial();
     mat.side = DoubleSide;
     mat.lights = false;

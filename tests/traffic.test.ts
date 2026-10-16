@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { makeCourse } from '../src/game/course';
 import { laneOf } from '../src/game/traffic';
-import { GeoGrid, hardSDF } from '../src/sim/geography';
+import { HAULOVER } from '../src/locations/haulover';
+import { makeCourse } from '../src/locations/haulover/course';
+import { hardSDF } from '../src/locations/haulover/geography';
+import { GeoGrid } from '../src/sim/geoGrid';
 
 describe('traffic lanes', () => {
   const path = makeCourse('outbound').path;
-  const geo = GeoGrid.bake();
+  const geo = GeoGrid.bake(HAULOVER);
 
   it('both lanes stay in deep water, clear of the seawalls and jetties', () => {
     for (const dir of [1, -1] as const) {

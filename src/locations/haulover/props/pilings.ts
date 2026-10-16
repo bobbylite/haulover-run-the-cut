@@ -14,9 +14,9 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three/webgpu';
-import { Rng } from '../../core/math';
-import { PILINGS } from '../../sim/geography';
-import { ToonMaterial } from '../toon';
+import { Rng } from '../../../core/math';
+import { ToonMaterial } from '../../../render/toon';
+import { PILINGS } from '../geography';
 
 function merged(parts: { g: BufferGeometry; c: Color }[]): BufferGeometry {
   const pos: number[] = [];

@@ -15,7 +15,7 @@ export function mountDebugHud(game: Game): () => void {
       `wave axis ${h.wave.angleDeg.toFixed(0)}°  bad ${h.wave.bad.toFixed(2)}  rough ${h.wave.rough.toFixed(2)}  streak ×${h.wave.mult}  air ${h.wave.air.toFixed(1)}s`,
       `wind ${h.windKn.toFixed(0)} kn from ${h.windFrom.toFixed(0)}  cur ${h.currentKn.toFixed(1)} kn  waves ${h.waveH.toFixed(2)} m`,
       `gate ${h.gate}/${h.gates} ${h.gateLabel}  prog ${(h.progress * 100).toFixed(0)}%  t ${h.time.toFixed(1)}  x ${h.x.toFixed(0)} z ${h.z.toFixed(0)}`,
-      `fps ${game.rw.perf.fps.toFixed(0)}  res ${(game.rw.perf.scale * 100).toFixed(0)}%${game.rw.perf.auto ? ' (auto)' : ''}  traffic ${game.traffic.vessels.length}`,
+      `fps ${game.rw.perf.fps.toFixed(0)}  res ${(game.rw.perf.scale * 100).toFixed(0)}%${game.rw.perf.auto ? ' (auto)' : ''}  mode ${game.mode.id}`,
       h.warning ?? '',
       game.toasts.map((t) => `· ${t.text}`).join('\n'),
       game.result

@@ -8,7 +8,9 @@ import { boatById } from '../src/data/boats';
 import { difficultyById } from '../src/data/difficulty';
 import { weatherById } from '../src/data/weather';
 import { Autopilot } from '../src/game/autopilot';
-import { makeCourse } from '../src/game/course';
+import { HAULOVER } from '../src/locations/haulover';
+import { makeCourse } from '../src/locations/haulover/course';
+import { SLIP_BERTH } from '../src/locations/haulover/geography';
 import { Boat } from '../src/sim/boat';
 import { makeBoatEnv } from '../src/sim/boatEnv';
 import { Environment } from '../src/sim/environment';
@@ -41,7 +43,7 @@ describe('balance sweep', () => {
         for (const wid of weathers)
           for (const tide of tides)
             for (const cruise of cruises) {
-              const env = new Environment();
+              const env = new Environment(HAULOVER);
               env.setConditions(weatherById(wid), tide, diff, true);
               const benv = makeBoatEnv(env);
               const route = (process.env.ROUTE ?? 'outbound') as 'outbound' | 'inbound';
@@ -53,6 +55,7 @@ describe('balance sweep', () => {
               boat.water.autoBilge = diff.autoBilge;
               const ap = new Autopilot(course.path, cruise);
               ap.dock = route === 'inbound';
+              ap.berth = SLIP_BERTH;
               const ctl = { throttle: 0, steer: 0, sheet: 0.5, pump: false };
               const DT = 1 / 30;
               let t = 0;

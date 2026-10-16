@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { difficultyById } from '../src/data/difficulty';
 import { weatherById } from '../src/data/weather';
+import { HAULOVER } from '../src/locations/haulover';
 import { Environment } from '../src/sim/environment';
 import { makeWaveSample } from '../src/sim/waves';
 
 const make = (weather: string, tide: 'ebb' | 'flood' | 'slack') => {
-  const env = new Environment();
+  const env = new Environment(HAULOVER);
   env.setConditions(weatherById(weather), tide, difficultyById('weekender'), true);
   return env;
 };

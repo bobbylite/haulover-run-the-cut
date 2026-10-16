@@ -11,12 +11,12 @@ import {
   Quaternion,
   Vector3,
 } from 'three/webgpu';
-import { clamp, noise2, Rng } from '../../core/math';
-import { JETTY_CREST, JETTY_HALF, JETTY_X0, JETTY_X1, jettyZ } from '../../sim/geography';
-import { bulb, flashBulb, gel, matte, metal } from '../boats/materials';
-import { PartBuilder } from '../boats/parts';
-import { ToonMaterial } from '../toon';
-import { type P3, sweep } from './sweep';
+import { clamp, noise2, Rng } from '../../../core/math';
+import { bulb, flashBulb, gel, matte, metal } from '../../../render/boats/materials';
+import { PartBuilder } from '../../../render/boats/parts';
+import { ToonMaterial } from '../../../render/toon';
+import { type P3, sweep } from '../../../render/world/sweep';
+import { JETTY_CREST, JETTY_HALF, JETTY_X0, JETTY_X1, jettyZ } from '../geography';
 
 function rockGeometry(seed: number): IcosahedronGeometry {
   const g = new IcosahedronGeometry(1, 1);

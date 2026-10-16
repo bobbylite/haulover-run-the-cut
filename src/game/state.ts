@@ -107,8 +107,34 @@ export interface ToastMsg {
   ttl: number;
 }
 
+/** What a fishing day came to (Montauk). */
+export interface CatchResult {
+  landed: boolean;
+  species: string;
+  kg: number;
+  /** Seconds from the strike to the gaff (or to the loss) of the fish that counted. */
+  fightS: number;
+  strikes: number;
+  lost: number;
+  /** Percent of the fight spent with the line in the sweet zone. */
+  cleanPct: number;
+  peakTension: number;
+  /** How the last fish got away, if it did. */
+  reason: string | null;
+  parts: { label: string; pts: number }[];
+}
+
 export interface ResultState {
-  outcome: 'finished' | 'docked' | 'swamped' | 'wrecked' | 'capsized' | 'stranded' | 'timeout';
+  outcome:
+    | 'finished'
+    | 'docked'
+    | 'landed'
+    | 'swamped'
+    | 'wrecked'
+    | 'capsized'
+    | 'stranded'
+    | 'timeout'
+    | 'adrift';
   title: string;
   subtitle: string;
   time: number;
@@ -141,6 +167,8 @@ export interface ResultState {
     touches: number;
     bonus: number;
   } | null;
+  /** Fishing summary (Montauk). */
+  fish?: CatchResult | null;
 }
 
 export const emptyHud = (): HudState => ({

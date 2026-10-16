@@ -28,10 +28,10 @@ import {
   Quaternion,
   Vector3,
 } from 'three/webgpu';
-import { Rng } from '../../core/math';
-import { BRIDGE_X, beachX, hardSDF, landSDF } from '../../sim/geography';
-import { shared } from '../shared';
-import { ToonMaterial } from '../toon';
+import { Rng } from '../../../core/math';
+import { shared } from '../../../render/shared';
+import { ToonMaterial } from '../../../render/toon';
+import { BRIDGE_X, beachX, hardSDF, landSDF } from '../geography';
 
 type N = any;
 

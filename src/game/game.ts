@@ -1,30 +1,27 @@
-// The game: state machine, run logic (gates, water capacity, failure, scoring) and the glue between
-// simulation, rendering, camera and UI.
+// The engine host: owns the world (renderer, sea, the player's boat, camera, input, audio), the phase
+// machine and the feedback every boat gets (slams, green water, wave streaks, jumps, sails, warnings).
+// What you actually do in the place is a `GameMode` (see game/mode.ts) that the host drives each frame.
 
 import { Quaternion, Vector3 } from 'three/webgpu';
 import { AudioEngine, type AudioFrame } from '../audio/audio';
 import { clamp, damp, KNOTS, wrapAngle } from '../core/math';
 import { boatById } from '../data/boats';
-import { difficultyById } from '../data/difficulty';
+import { type Difficulty, difficultyById } from '../data/difficulty';
 import { weatherById } from '../data/weather';
+import type { Location } from '../locations/types';
 import { BoatModel } from '../render/boats/boatModel';
 import { RenderWorld } from '../render/renderWorld';
 import type { WakeBoat } from '../render/wake';
-import { HazardView } from '../render/world/hazardView';
-import { GateMarkers } from '../render/world/markers';
 import type { BoatEnv } from '../sim/boat';
 import { Boat } from '../sim/boat';
-import { makeBoatEnv } from '../sim/boatEnv';
+import { DynamicObstacles, makeBoatEnv } from '../sim/boatEnv';
 import { Environment } from '../sim/environment';
-import { Hazards } from '../sim/hazards';
 import { idealSheet } from '../sim/sail';
 import { CLEAN_PERIOD } from '../sim/waveRide';
 import { GameCamera } from './camera';
-import { type Course, crossedGate, makeCourse, pathProgress } from './course';
-import { Docking } from './docking';
 import { Input } from './input';
-import { computeScore, parTime } from './scoring';
-import { loadBest, loadSettings, type Settings, saveBest, saveSettings } from './settings';
+import type { GameMode, ModeDef } from './mode';
+import { lastConfig, loadSettings, rememberConfig, type Settings, saveSettings } from './settings';
 import {
   emptyHud,
   type GameConfig,
@@ -33,7 +30,6 @@ import {
   type ResultState,
   type ToastMsg,
 } from './state';
-import { Traffic } from './traffic';
 
 export const DEFAULT_CONFIG: GameConfig = {
   boat: 'console',
@@ -45,8 +41,15 @@ export const DEFAULT_CONFIG: GameConfig = {
 
 type Listener<T> = (v: T) => void;
 
+/** What the boat itself can go wrong with, whatever the game. */
+export type BoatFailure = 'wrecked' | 'swamped' | 'capsized';
+
 export class Game {
-  readonly env = new Environment();
+  /** The place this run is set in. */
+  readonly loc: Location;
+  readonly env: Environment;
+  /** The rules: the course, fish or berth. */
+  readonly mode: GameMode;
   readonly hud: HudState = emptyHud();
   readonly toasts: ToastMsg[] = [];
   readonly settings: Settings = loadSettings();
@@ -58,65 +61,58 @@ export class Game {
   rw!: RenderWorld;
   cam!: GameCamera;
   input!: Input;
+  /** Moving hard obstacles (other vessels, drift logs): the mode fills it, the physics reads it. */
+  readonly obstacles = new DynamicObstacles();
   benv!: BoatEnv;
-  /** Same world without the moving obstacles, for the traffic's own physics. */
-  private benvStatic!: BoatEnv;
+  /** Same world without the moving obstacles, for ambient traffic's own physics. */
+  benvStatic!: BoatEnv;
   player!: Boat;
   model!: BoatModel;
-  course!: Course;
-  markers!: GateMarkers;
-  traffic!: Traffic;
-  readonly hazards = new Hazards();
-  readonly docking = new Docking();
-  hazardView!: HazardView;
+  /** Seconds of play since the page loaded (frame-stepped). */
+  clock = 0;
+  /** Points banked by clean landings after jumps (the streak keeps its own in `ride.bonus`). */
+  airBonus = 0;
+  /** The hardest hull slam this frame (the host clears the boat's own counter), for modes that care. */
+  frameSlam = 0;
 
   private readonly phaseListeners: Listener<Phase>[] = [];
   private readonly splashListeners: Listener<number>[] = [];
   private toastId = 1;
 
-  // run state
-  private elapsed = 0;
-  private penalty = 0;
   private countdownT = 0;
-  private nextGate = 0;
-  private pathHint = 0;
-  private prevX = 0;
-  private prevZ = 0;
-  private gateOffsets: (number | null)[] = [];
-  private collisions = 0;
-  private maxSpeed = 0;
-  private strandedT = 0;
   private resumePhase: Phase = 'playing';
   private lastRespawn = -10;
   private lastBurstToast = -10;
   private lastHitToast = -10;
   private lastHeelToast = -10;
   private lastIronsToast = -10;
-  /** Points banked by clean landings after jumps (the streak keeps its own in `ride.bonus`). */
-  private airBonus = 0;
-  private warned = new Set<string>();
+  private readonly warned = new Set<string>();
   private readonly tmpQ = new Quaternion();
   private readonly dbgFocus = new Vector3();
   private readonly yAxis = new Vector3(0, 1, 0);
   private readonly cur = { x: 0, z: 0 };
   private readonly wnd = { x: 0, z: 0 };
-  private clock = 0;
   private lastCount = 99;
   private prevVy = 0;
   private heave = 0;
   /** Dev: fixed camera [x,y,z, tx,ty,tz] from ?cam= or window.__setCam. */
   debugCam: number[] | null = null;
 
-  private constructor(cfg: GameConfig) {
+  private constructor(cfg: GameConfig, def: ModeDef) {
     this.cfg = { ...cfg };
+    this.loc = def.location;
+    this.env = new Environment(def.location);
+    this.mode = def.create(this);
   }
 
   static async create(
     root: HTMLElement,
-    cfg: GameConfig = DEFAULT_CONFIG,
+    def: ModeDef,
+    cfg: Partial<GameConfig> = {},
     progress: (p: number, msg: string) => void = () => {},
   ): Promise<Game> {
-    const g = new Game({ ...DEFAULT_CONFIG, ...cfg, ...(loadSettings().last ?? {}), ...cfg });
+    const last = lastConfig(loadSettings(), def.id);
+    const g = new Game({ ...DEFAULT_CONFIG, ...def.defaults, ...cfg, ...last, ...cfg }, def);
     await g.init(root, progress);
     return g;
   }
@@ -138,12 +134,7 @@ export class Game {
 
     progress(0.35, 'Raising the sea…');
     await tick();
-    this.env.setConditions(
-      weatherById(this.cfg.weather),
-      this.cfg.tide,
-      difficultyById(this.cfg.difficulty),
-      true,
-    );
+    this.env.setConditions(weatherById(this.cfg.weather), this.cfg.tide, this.diff(), true);
     this.rw = await RenderWorld.create(root, this.env, {
       quality: this.settings.quality,
       forceWebGL: q.has('webgl'),
@@ -152,23 +143,11 @@ export class Game {
     await tick();
     this.cam = new GameCamera(this.rw.camera, this.env);
     this.input = new Input(this.rw.renderer.domElement);
-    this.traffic = new Traffic(
-      (m) => this.rw.world.add(m.root),
-      (m) => {
-        this.rw.world.remove(m.root);
-        m.dispose();
-      },
-    );
-    this.benv = makeBoatEnv(this.env, this.traffic.obstacles);
+    this.benv = makeBoatEnv(this.env, this.obstacles);
     this.benvStatic = makeBoatEnv(this.env);
-
-    this.course = makeCourse(this.cfg.route, difficultyById(this.cfg.difficulty).gateScale);
-    this.markers = new GateMarkers(this.course);
-    this.rw.world.add(this.markers.group);
-    this.hazardView = new HazardView();
-    this.rw.world.add(this.hazardView.group);
+    this.mode.init();
     this.rebuildPlayer();
-    this.resetTraffic();
+    this.mode.populate();
 
     this.input.on('camera', () => this.cycleCamera());
     this.input.on('reset', () => this.respawn());
@@ -197,6 +176,11 @@ export class Game {
     this.setPhase('menu');
   }
 
+  /** The sea scaling in force: the game's own, or the shared table. */
+  private diff(): Difficulty {
+    return this.mode.difficulty?.(this.cfg.difficulty) ?? difficultyById(this.cfg.difficulty);
+  }
+
   // ------------------------------------------------------------------------------------------------
   // events
   // ------------------------------------------------------------------------------------------------
@@ -220,6 +204,10 @@ export class Game {
     if (this.toasts.length > 5) this.toasts.shift();
   }
 
+  splash(a: number): void {
+    for (const fn of this.splashListeners) fn(a);
+  }
+
   // ------------------------------------------------------------------------------------------------
   // configuration (menu)
   // ------------------------------------------------------------------------------------------------
@@ -228,31 +216,18 @@ export class Game {
     const prev = { ...this.cfg };
     Object.assign(this.cfg, partial);
     const c = this.cfg;
-    if (c.route !== prev.route || c.difficulty !== prev.difficulty) {
-      this.course = makeCourse(c.route, difficultyById(c.difficulty).gateScale);
-      this.markers.setCourse(this.course);
-    }
+    this.mode.prepare(prev);
     const reseed = c.weather !== prev.weather || c.route !== prev.route || c.difficulty !== prev.difficulty;
     if (c.weather !== prev.weather || c.tide !== prev.tide || c.difficulty !== prev.difficulty) {
       const w = weatherById(c.weather);
-      this.env.setConditions(w, c.tide, difficultyById(c.difficulty), false);
+      this.env.setConditions(w, c.tide, this.diff(), false);
       this.rw.weather.setTarget(w);
     }
     if (c.boat !== prev.boat || c.route !== prev.route || c.difficulty !== prev.difficulty)
       this.rebuildPlayer();
-    if (reseed) this.resetTraffic();
-    this.settings.last = { ...c };
+    if (reseed) this.mode.populate();
+    rememberConfig(this.settings, this.mode.id, c);
     saveSettings(this.settings);
-  }
-
-  private resetTraffic(): void {
-    this.traffic.reset(
-      this.benvStatic,
-      weatherById(this.cfg.weather),
-      this.settings.quality,
-      this.course.start.x,
-      difficultyById(this.cfg.difficulty).traffic,
-    );
   }
 
   private rebuildPlayer(): void {
@@ -261,9 +236,9 @@ export class Game {
       this.model.dispose();
     }
     const spec = boatById(this.cfg.boat);
-    const diff = difficultyById(this.cfg.difficulty);
+    const diff = this.diff();
     this.player = new Boat(spec);
-    const s = this.course.start;
+    const s = this.mode.start;
     this.player.reset(s.x, s.z, s.heading, this.benv);
     this.player.capacityLimit = spec.capacity * diff.capacity;
     this.player.water.autoBilge = diff.autoBilge;
@@ -274,8 +249,6 @@ export class Game {
     });
     this.rw.world.add(this.model.root);
     this.cam.snap(this.player);
-    this.prevX = this.player.pos.x;
-    this.prevZ = this.player.pos.z;
   }
 
   // ------------------------------------------------------------------------------------------------
@@ -283,22 +256,12 @@ export class Game {
   // ------------------------------------------------------------------------------------------------
 
   startRun(): void {
-    const diff = difficultyById(this.cfg.difficulty);
+    const diff = this.diff();
     this.env.setConditions(weatherById(this.cfg.weather), this.cfg.tide, diff, true);
     this.rw.weather.setTarget(weatherById(this.cfg.weather));
     this.rebuildPlayer();
-    this.resetTraffic();
-    this.elapsed = 0;
-    this.penalty = 0;
-    this.nextGate = 0;
-    this.pathHint = 0;
-    this.collisions = 0;
-    this.maxSpeed = 0;
-    this.strandedT = 0;
+    this.mode.populate();
     this.airBonus = 0;
-    this.docking.reset();
-    this.hazards.generate(this.course, diff.hazards);
-    this.gateOffsets = this.course.gates.map(() => null);
     this.warned.clear();
     this.toasts.length = 0;
     this.result = null;
@@ -306,6 +269,7 @@ export class Game {
     this.input.enabled = false;
     this.countdownT = 3.4;
     this.lastCount = 99;
+    this.mode.begin();
     this.setPhase('countdown');
     this.cam.mode = 'chase';
   }
@@ -314,8 +278,18 @@ export class Game {
     this.input.enabled = false;
     this.result = null;
     this.rebuildPlayer();
-    this.resetTraffic();
+    this.mode.populate();
     this.setPhase('menu');
+  }
+
+  /** A mode calls this when the run is over, win or lose. */
+  endRun(result: ResultState, ok: boolean): void {
+    if (this.phase === 'finished' || this.phase === 'failed') return;
+    this.result = result;
+    this.input.enabled = false;
+    this.input.throttle = 0;
+    this.setPhase(ok ? 'finished' : 'failed');
+    this.audio.finish(ok);
   }
 
   togglePause(): void {
@@ -355,141 +329,35 @@ export class Game {
 
   respawn(): void {
     if (this.phase !== 'playing' || this.clock - this.lastRespawn < 2.5) return;
+    const pose = this.mode.respawnPose();
+    if (!pose) return;
     this.lastRespawn = this.clock;
-    const gi = Math.max(0, this.nextGate - 1);
-    const g = this.nextGate > 0 ? this.course.gates[gi] : null;
-    const x = g ? g.x : this.course.start.x;
-    const z = g ? g.z : this.course.start.z;
-    const heading = Math.atan2(
-      g ? g.nz : Math.sin(this.course.start.heading),
-      g ? g.nx : Math.cos(this.course.start.heading),
-    );
     const b = this.player;
     const keep = b.water.volume * 0.5;
     const keepHull = b.hull;
     const keepRide = b.ride.bonus;
-    b.reset(x, z, heading, this.benv);
+    b.reset(pose.x, pose.z, pose.heading, this.benv);
     b.water.volume = keep;
     // a lift back onto the course patches the seams but does not rebuild the hull
     b.hull = keepHull;
     b.ride.bonus = keepRide;
-    b.leakScale = difficultyById(this.cfg.difficulty).leakScale;
-    b.capacityLimit = boatById(this.cfg.boat).capacity * difficultyById(this.cfg.difficulty).capacity;
-    b.water.autoBilge = difficultyById(this.cfg.difficulty).autoBilge;
-    this.penalty += 20;
+    const diff = this.diff();
+    b.leakScale = diff.leakScale;
+    b.capacityLimit = boatById(this.cfg.boat).capacity * diff.capacity;
+    b.water.autoBilge = diff.autoBilge;
     this.cam.snap(b);
-    this.prevX = x;
-    this.prevZ = z;
-    this.strandedT = 0;
     this.input.reset();
-    this.toast('Back on course (+20 s)', 'warn');
+    this.mode.onRespawn(pose);
     this.audio.whoosh();
   }
 
-  /** Par time for this boat on this course. */
-  private par(): number {
-    return parTime(this.course.length, this.player.spec.topSpeed);
-  }
-
-  /** Run-clock allowance for this difficulty (the docking challenge has its own timer). */
-  private runLimit(): number {
-    return this.par() * difficultyById(this.cfg.difficulty).timeLimit;
-  }
-
-  private finish(outcome: ResultState['outcome']): void {
-    if (this.phase === 'finished' || this.phase === 'failed') return;
-    const diff = difficultyById(this.cfg.difficulty);
-    const spec = this.player.spec;
-    const time = this.elapsed + this.penalty;
-    const capacityL = spec.capacity * diff.capacity;
-    const peak = this.player.water.peakVolume;
-    const ok = outcome === 'finished' || outcome === 'docked';
-    const par = this.par();
-    const hasDock = !!this.course.dock;
-    const ds = this.docking.status;
-    const docked = outcome === 'docked';
-    const dockInfo = hasDock
-      ? {
-          docked,
-          time: this.docking.t,
-          speedKn: ds.speedKn,
-          alignDeg: ds.alignDeg,
-          touches: this.docking.touches,
-          bonus: 0,
-        }
-      : null;
-    const rideBonus = this.player.ride.bonus + this.airBonus;
-    const sc = computeScore({
-      time,
-      par,
-      peakFrac: peak / capacityL,
-      offsets: this.gateOffsets,
-      collisions: this.collisions,
-      difficultyMult: diff.score * spec.scoreMult,
-      hull: this.player.hull,
-      ride: rideBonus,
-      dock: hasDock
-        ? {
-            docked,
-            timeFrac: ds.timeLeft / Math.max(1, this.docking.limit),
-            speed: this.player.sog,
-            alignErr: (ds.alignDeg * Math.PI) / 180,
-            touches: this.docking.touches,
-          }
-        : undefined,
-    });
-    if (dockInfo) dockInfo.bonus = Math.round(sc.parts.dock * diff.score);
-    const best = loadBest(this.cfg);
-    const score = ok ? sc.score : 0;
-    const newBest = ok && score > best;
-    if (newBest) saveBest(this.cfg, score);
-    const titles: Record<ResultState['outcome'], [string, string]> = {
-      finished: ['Through the Cut!', 'You cleared the sea buoy.'],
-      docked: ['Docked!', `Tied up in slip ${this.slipNumber()} with the whole marina watching.`],
-      swamped: ['Swamped!', `You shipped more than ${Math.round(capacityL)} L and went down.`],
-      wrecked: ['Hull breached!', 'The sea pounded the hull to pieces. Take big waves at 45°, not head-on.'],
-      capsized: ['Capsized!', 'The sea rolled you over.'],
-      stranded: ['Aground!', 'Stuck on the bottom with the tide going out.'],
-      timeout: [
-        'Out of time!',
-        this.docking.active
-          ? 'The harbourmaster gave up waiting for you to park.'
-          : 'The clock beat you through the Cut.',
-      ],
-    };
-    this.result = {
-      outcome,
-      title: titles[outcome][0],
-      subtitle: titles[outcome][1],
-      time,
-      penalty: this.penalty,
-      score,
-      stars: ok ? sc.stars : 0,
-      best: Math.max(best, newBest ? score : best),
-      newBest,
-      dryPct: Math.round(clamp(1 - peak / capacityL, 0, 1) * 100),
-      peakL: Math.round(peak),
-      capacityL: Math.round(capacityL),
-      gates: this.course.gates.map((g, i) => ({ label: g.label, offset: this.gateOffsets[i] ?? null })),
-      collisions: this.collisions,
-      hullPct: Math.round(this.player.hull * 100),
-      bestCombo: this.player.ride.bestCombo + 1,
-      rideBonus: Math.round(Math.min(900, rideBonus)),
-      totalIntakeL: Math.round(this.player.water.totalIntake),
-      maxSpeedKn: Math.round(this.maxSpeed * KNOTS),
-      boat: spec.name,
-      weather: weatherById(this.cfg.weather).name,
-      difficulty: diff.name,
-      dock: dockInfo,
-    };
-    this.input.enabled = false;
-    this.input.throttle = 0;
-    this.setPhase(ok ? 'finished' : 'failed');
-    this.audio.finish(ok);
-  }
-
-  private slipNumber(): number {
-    return 3;
+  /** What has gone fatally wrong with the player's boat, if anything. */
+  boatFailure(): BoatFailure | null {
+    const b = this.player;
+    if (b.wrecked) return 'wrecked';
+    if (b.sinking && b.sinkT > 0.35) return 'swamped';
+    if (b.capsized) return 'capsized';
+    return null;
   }
 
   // ------------------------------------------------------------------------------------------------
@@ -530,21 +398,22 @@ export class Game {
 
     const boat = this.player;
     if (simulating) {
+      this.frameSlam = 0;
       const c = this.input.controls();
       if (phase === 'playing') boat.setInput(c);
       else boat.setInput({ throttle: 0, steer: 0, sheet: boat.sheet, pump: false });
       boat.update(dt, this.benv);
       if (phase !== 'menu' && phase !== 'countdown') this.rw.spray.emit(dt, boat, this.env);
-      this.updateTraffic(dt);
-      if (phase === 'playing' || phase === 'failed' || phase === 'finished') this.runLogic(dt);
-      this.prevX = boat.pos.x;
-      this.prevZ = boat.pos.z;
+      if (phase === 'playing' || phase === 'failed' || phase === 'finished')
+        this.boatFeedback(phase === 'playing');
+      this.mode.update(dt, phase);
+      if (this.phase === 'playing') this.boatWarnings();
     }
 
     this.updateToasts(dt);
     this.env.windAt(boat.pos.x, boat.pos.z, this.wnd);
     this.model.update(boat, this.wnd, this.env.time);
-    this.markers.update(this.env, this.nextGate, this.clock);
+    this.mode.visuals(dt);
     this.updateHud();
 
     // camera
@@ -560,15 +429,6 @@ export class Game {
       focus = this.dbgFocus;
     }
     this.rw.update(dt, focus, this.wakeBoats());
-    // the glowing target slip (green once speed, angle and position are all right)
-    const ds = this.docking.status;
-    this.rw.props.dockMarker.update(
-      dt,
-      !!this.course.dock && this.phase !== 'loading',
-      this.docking.active && ds.posOk && ds.alignOk && ds.speedOk,
-      this.docking.berthX(boat.spec.length),
-      boat.spec.length,
-    );
     this.audio.update(dt, this.audioFrame(dt));
   }
 
@@ -616,27 +476,13 @@ export class Game {
       sailLuff: b.sailLuff,
       pumping: b.water.pumping,
       weather: this.cfg.weather,
-      clearance: this.docking.active ? this.docking.status.clearance : 99,
+      clearance: this.mode.clearance(),
       fouled: this.player.foulT > 0,
+      fishing: this.mode.audio?.() ?? null,
     };
   }
 
   private readonly wb: WakeBoat[] = [];
-
-  private updateTraffic(dt: number): void {
-    const player = this.player;
-    this.traffic.update(dt, this.benvStatic, player, weatherById(this.cfg.weather));
-    this.hazards.addObstacles(this.traffic.obstacles);
-    this.hazardView.sync(this.hazards.list, this.env, this.clock);
-    for (const v of this.traffic.vessels) {
-      if (v.wait > 0) continue;
-      this.env.windAt(v.boat.pos.x, v.boat.pos.z, this.wnd);
-      v.model.update(v.boat, this.wnd, this.env.time);
-      if (Math.hypot(v.boat.pos.x - player.pos.x, v.boat.pos.z - player.pos.z) < 160) {
-        this.rw.spray.emit(dt, v.boat, this.env);
-      }
-    }
-  }
 
   private wakeEntry(b: Boat): WakeBoat {
     const spec = b.spec;
@@ -666,18 +512,18 @@ export class Game {
     };
   }
 
-  /** Everything that disturbs the water this frame: the player plus nearby traffic. */
+  /** Everything that disturbs the water this frame: the player plus the mode's other boats. */
   private wakeBoats(): WakeBoat[] {
     this.wb.length = 0;
     this.wb.push(this.wakeEntry(this.player));
-    for (const e of this.traffic.wakeBoats(this.player, (b) => this.wakeEntry(b))) this.wb.push(e);
+    for (const e of this.mode.wakeBoats((b) => this.wakeEntry(b))) this.wb.push(e);
     return this.wb;
   }
 
   /** Keep the boat moored in place for the menu / countdown. */
   private hold(dt: number): void {
     const b = this.player;
-    const s = this.course.start;
+    const s = this.mode.start;
     const k = damp(2.5, dt);
     b.pos.x += (s.x - b.pos.x) * k;
     b.pos.z += (s.z - b.pos.z) * k;
@@ -689,48 +535,15 @@ export class Game {
     b.angVel.y *= 0.8;
   }
 
-  private runLogic(dt: number): void {
+  // ------------------------------------------------------------------------------------------------
+  // boat feedback: what the sea does to any boat, in any game
+  // ------------------------------------------------------------------------------------------------
+
+  private boatFeedback(playing: boolean): void {
     const b = this.player;
-    const diff = difficultyById(this.cfg.difficulty);
-    const playing = this.phase === 'playing';
-    const dockMode = this.docking.active;
-    if (playing) {
-      this.elapsed += dt;
-      this.maxSpeed = Math.max(this.maxSpeed, b.sog);
-      // the clock only runs out before the docking challenge begins (which has its own timer)
-      if (!dockMode && this.elapsed + this.penalty > this.runLimit()) {
-        this.finish('timeout');
-        return;
-      }
-    }
-
-    // hull strikes -> leaks + shake (gentler thresholds at the dock, where speeds are tiny)
-    const hitSpeed = dockMode ? 1.1 : 2.2;
-    for (const im of b.impacts) {
-      if (!playing) break;
-      if (dockMode && im.speed > 0.45) this.docking.touches++;
-      if (im.speed > hitSpeed) {
-        this.collisions++;
-        const harm = Math.min(0.5, (im.speed - 0.8 * hitSpeed) * 0.045);
-        if (im.hard) {
-          b.damage(harm);
-          this.cam.addShake(Math.min(1, im.speed / 9));
-          this.splash(0.5);
-          this.audio.hit(im.speed);
-          this.toast(
-            `Hull strike! Hull ${Math.round(b.hull * 100)}% · leaking ${b.water.leak.toFixed(1)} L/s`,
-            'bad',
-          );
-        }
-      } else if (dockMode && im.speed > 0.45) {
-        this.audio.hit(Math.max(1.2, im.speed * 2));
-        this.toast('Bump! Fenders to the wind.', 'warn', 1.4);
-      }
-    }
-    b.impacts.length = 0;
-
-    // slams + green water feedback
+    // slams + green water
     const w = b.water;
+    this.frameSlam = Math.max(this.frameSlam, w.slam);
     if (w.slam > 0) {
       this.cam.addShake(Math.min(0.7, w.slam / 12));
       if (w.slam > 2.4) this.rw.spray.burst(b, Math.min(1, w.slam / 9));
@@ -747,64 +560,14 @@ export class Game {
       }
       w.burst = 0;
     }
-
     this.waveEvents(playing);
     this.sailEvents(playing);
-    if (!playing) return;
+  }
 
-    // floating hazards: run over a crab-pot float and the line wraps your prop
-    this.hazards.update(dt, this.env);
-    if (this.hazards.pots(b.pos.x, b.pos.z, b.fwd.x, b.fwd.z, b.spec.length, b.spec.beam)) {
-      b.foulT = 4.5;
-      this.audio.hit(3.2);
-      this.cam.addShake(0.35);
-      this.toast('Prop fouled in a crab-pot line! Ease off and let it clear.', 'bad', 3.2);
-    }
-
-    // gates
-    const gates = this.course.gates;
-    for (let k = this.nextGate; k < Math.min(gates.length, this.nextGate + 3); k++) {
-      const g = gates[k] as (typeof gates)[number];
-      const hit = crossedGate(g, this.prevX, this.prevZ, b.pos.x, b.pos.z, 6 * diff.gateScale);
-      if (!hit) continue;
-      for (let m = this.nextGate; m < k; m++) {
-        this.penalty += diff.missPenalty;
-        this.toast(`Missed gate: ${gates[m]?.label} (+${diff.missPenalty} s)`, 'warn');
-      }
-      this.gateOffsets[k] = hit.offset;
-      this.nextGate = k + 1;
-      if (g.kind === 'dock') {
-        this.docking.start(diff.dockTime);
-        this.traffic.startBasin(diff.traffic);
-        this.toast(`Marina Entrance: park in slip ${this.slipNumber()}, mind the pilings!`, 'good', 4);
-        this.audio.gate(true, k);
-      } else if (g.kind !== 'finish') {
-        const clean = Math.abs(hit.offset) < 0.28;
-        this.toast(clean ? `${g.label}: clean line` : g.label, clean ? 'good' : 'info', 1.8);
-        this.audio.gate(clean, k);
-      }
-      break;
-    }
-
-    // finish: sea-buoy line on the sprint, or a successful berth on the routes that come home
-    if (!this.course.dock) {
-      if (this.nextGate >= gates.length) this.finish('finished');
-    } else if (dockMode) {
-      const r = this.docking.update(dt, b, this.benv);
-      if (r === 'docked') this.finish('docked');
-      else if (r === 'timeout') this.finish('timeout');
-    }
-
-    // failure
-    if (b.wrecked) this.finish('wrecked');
-    else if (b.sinking && b.sinkT > 0.35) this.finish('swamped');
-    else if (b.capsized) this.finish('capsized');
-    if (b.grounded > 0.25 && b.sog < 0.9 && !dockMode) this.strandedT += dt;
-    else this.strandedT = Math.max(0, this.strandedT - dt * 0.5);
-    if (this.strandedT > 11) this.finish('stranded');
-
-    // warnings
-    const frac = w.litres / Math.max(1, b.capacityLimit ?? 1);
+  /** Bilge and hull warnings. */
+  private boatWarnings(): void {
+    const b = this.player;
+    const frac = b.water.litres / Math.max(1, b.capacityLimit ?? 1);
     if (frac > 0.5 && !this.warned.has('half')) {
       this.warned.add('half');
       this.toast('Bilge half full — hold B to pump!', 'warn', 3.2);
@@ -828,13 +591,6 @@ export class Game {
       this.warned.add('hull25');
       this.toast('HULL FAILING — get out of the weather!', 'bad', 3.6);
       this.audio.alarm(true);
-    }
-    // the run clock
-    const left = this.runLimit() - (this.elapsed + this.penalty);
-    if (!dockMode && left < 30 && !this.warned.has('time')) {
-      this.warned.add('time');
-      this.toast('30 seconds on the clock!', 'warn', 3);
-      this.audio.alarm(false);
     }
   }
 
@@ -920,10 +676,6 @@ export class Game {
     }
   }
 
-  private splash(a: number): void {
-    for (const fn of this.splashListeners) fn(a);
-  }
-
   private updateToasts(dt: number): void {
     for (let i = this.toasts.length - 1; i >= 0; i--) {
       const t = this.toasts[i] as ToastMsg;
@@ -936,7 +688,7 @@ export class Game {
     const h = this.hud;
     const b = this.player;
     const env = this.env;
-    const diff = difficultyById(this.cfg.difficulty);
+    const diff = this.diff();
     h.phase = this.phase;
     h.speedMs = b.speed;
     h.speedKn = Math.max(0, b.speed) * KNOTS;
@@ -978,14 +730,6 @@ export class Game {
     h.heading = ((Math.atan2(b.fwd.x, -b.fwd.z) * 180) / Math.PI + 360) % 360;
     h.heelDeg = b.heelDeg;
     h.pitchDeg = (b.pitch * 180) / Math.PI;
-    h.time = this.elapsed + this.penalty;
-    h.penalty = this.penalty;
-    h.gate = Math.min(this.nextGate, this.course.gates.length);
-    h.gates = this.course.gates.length;
-    h.gateLabel = this.course.gates[Math.min(this.nextGate, this.course.gates.length - 1)]?.label ?? '';
-    const prog = pathProgress(this.course, b.pos.x, b.pos.z, this.pathHint);
-    this.pathHint = prog.idx;
-    h.progress = this.phase === 'menu' ? 0 : clamp(prog.frac, 0, 1);
     h.countdown = this.phase === 'countdown' ? Math.max(0, this.countdownT) : 0;
     if (b.spec.sail) {
       const gamma = Math.abs(b.awa);
@@ -1014,8 +758,7 @@ export class Game {
         status,
       };
     } else h.sail = null;
-    h.dock = this.docking.active ? this.docking.status : null;
-    h.timeLeft = this.docking.active ? 0 : Math.max(0, this.runLimit() - (this.elapsed + this.penalty));
+    this.mode.fillHud(h);
     h.foul = b.foulT;
     h.grounded = b.grounded > 0.2;
     h.camera = this.cam.mode;
