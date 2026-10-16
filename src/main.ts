@@ -43,6 +43,11 @@ async function main() {
       );
     if (q.has('go')) game.startRun();
   }
+  // `?agent` hands the sim to an AI agent: observations and actions as JSON, stepped deterministically
+  if (q.has('agent')) {
+    const { mountAgentApi } = await import('./dev/agentApi');
+    Object.assign(window, { __agent: mountAgentApi(game) });
+  }
   // exposed last, so scripts that wait for `__game` see a game that is already set up (autopilot, ?go)
   Object.assign(window, { __game: game, __ui: ui });
 
@@ -50,7 +55,7 @@ async function main() {
   game.rw.renderer.setAnimationLoop((now) => {
     const dt = (now - last) / 1000;
     last = now;
-    game.update(dt);
+    if (!game.manual) game.update(dt);
     game.render();
     ui.update(now);
     updateDebug();

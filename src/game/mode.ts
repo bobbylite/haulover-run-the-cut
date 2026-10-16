@@ -94,6 +94,13 @@ export interface GameMode {
   audio?(): AudioFrame['fishing'];
   /** This game's own sea scaling for a difficulty id (otherwise the shared table is used). */
   difficulty?(id: string): Difficulty;
+  /**
+   * What an AI agent playing through `window.__agent` may observe about this game (JSON-serialisable). With
+   * `cheat` it may also see what the player cannot (where the fish are). See src/dev/agentApi.ts.
+   */
+  agentState?(cheat: boolean): Record<string, unknown>;
+  /** Game-specific actions an agent can take (set the spread, drag lever, pump, …). */
+  agentAct?(action: Record<string, unknown>): void;
 }
 
 /** Everything the registry needs to boot a game. */

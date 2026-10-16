@@ -74,6 +74,8 @@ export class Game {
   airBonus = 0;
   /** The hardest hull slam this frame (the host clears the boat's own counter), for modes that care. */
   frameSlam = 0;
+  /** When true the page's frame loop does not advance the sim: an agent steps it (src/dev/agentApi.ts). */
+  manual = false;
 
   private readonly phaseListeners: Listener<Phase>[] = [];
   private readonly splashListeners: Listener<number>[] = [];

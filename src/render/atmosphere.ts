@@ -23,7 +23,7 @@ import {
   vec3,
   vec4,
 } from 'three/tsl';
-import { Color, type DataTexture, Vector3 } from 'three/webgpu';
+import { Color, type DataTexture } from 'three/webgpu';
 import { shared } from './shared';
 import { toonQ } from './toon';
 import type { WeatherState } from './weatherState';
